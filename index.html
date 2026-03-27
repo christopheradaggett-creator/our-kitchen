@@ -844,16 +844,9 @@ function RecipeDetail({ recipe, allRecipes, trustedSources, onClose, onSave }) {
                 "METHOD",
                 "------",
                 ...(r.steps||[]).map((s,i)=>`  ${i+1}. ${s}`),
-                r.tweaks ? `
-MY TWEAKS
----------
-  ${r.tweaks}` : "",
-                r.notes ? `
-NOTES
------
-  ${r.notes}` : "",
-              ].filter(l=>l!==undefined).join("
-");
+                r.tweaks ? "\nMY TWEAKS\n---------\n  " + r.tweaks : "",
+                r.notes ? "\nNOTES\n-----\n  " + r.notes : "",
+              ].filter(l=>l!==undefined).join("\n");
               const blob = new Blob([lines], {type:"text/plain"});
               const a = document.createElement("a");
               a.href = URL.createObjectURL(blob);
@@ -881,14 +874,9 @@ NOTES
                 "",
                 "**Method**",
                 ...(r.steps||[]).map((s,i)=>`${i+1}. ${s}`),
-                r.tweaks ? `
-**My Tweaks**
-${r.tweaks}` : "",
-                r.notes ? `
-**Notes**
-${r.notes}` : "",
-              ].filter(l=>l!==undefined).join("
-");
+                r.tweaks ? "\n**My Tweaks**\n" + r.tweaks : "",
+                r.notes ? "\n**Notes**\n" + r.notes : "",
+              ].filter(l=>l!==undefined).join("\n");
               navigator.clipboard.writeText(text).then(()=>alert("Copied to clipboard! Ready to paste into Google Docs.")).catch(()=>alert("Copy failed — try the text export instead."));
             }}>📋 Copy for Google Docs</button>
           </div>
