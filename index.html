@@ -480,6 +480,8 @@ function PlannerTab({ mealPlan, recipes, addToDay, removeFromDay, pickerDay, set
   const [groceryList, setGroceryList] = useState(null);
   const [groceryLoading, setGroceryLoading] = useState(false);
   const [checked, setChecked] = useState({});
+  const [manualItems, setManualItems] = useState([]);
+  const [manualInput, setManualInput] = useState("");
   const [newSlotName, setNewSlotName] = useState("");
   const [addingSlot, setAddingSlot] = useState(false);
 
@@ -514,7 +516,7 @@ function PlannerTab({ mealPlan, recipes, addToDay, removeFromDay, pickerDay, set
   };
 
   const generateGroceryList = async () => {
-    setGroceryLoading(true); setGroceryModal(true); setGroceryList(null); setChecked({});
+    setGroceryLoading(true); setGroceryModal(true); setGroceryList(null); setChecked({}); setManualItems([]);
     // Collect all planned recipes
     const allSlots = [...DAYS, ...customSlots];
     const plannedIds = new Set();
@@ -636,6 +638,37 @@ function PlannerTab({ mealPlan, recipes, addToDay, removeFromDay, pickerDay, set
                   })}
                 </div>
               ))}
+
+              {/* Manual items */}
+              {manualItems.length > 0 && (
+                <div className="grocery-category">
+                  <div className="grocery-category-label">Added Manually</div>
+                  {manualItems.map((item,i)=>{
+                    const key = "manual"+i;
+                    return (
+                      <div key={key} className={`grocery-item${checked[key]?" done":""}`}>
+                        <div className={`grocery-check${checked[key]?" checked":""}`} onClick={()=>setChecked(p=>({...p,[key]:!p[key]}))}>{checked[key]&&"✓"}</div>
+                        <span style={{flex:1}} onClick={()=>setChecked(p=>({...p,[key]:!p[key]}))}>{item}</span>
+                        <button onClick={()=>setManualItems(p=>p.filter((_,j)=>j!==i))} style={{background:"none",border:"none",cursor:"pointer",color:"var(--muted)",fontSize:".85rem",padding:"0 4px"}}>✕</button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Add item input */}
+              <div style={{display:"flex",gap:8,marginTop:16,paddingTop:12,borderTop:"1px solid var(--border)"}}>
+                <input
+                  className="finput" style={{flex:1,padding:"7px 12px",fontSize:".85rem"}}
+                  placeholder="Add an item…"
+                  value={manualInput}
+                  onChange={e=>setManualInput(e.target.value)}
+                  onKeyDown={e=>{if(e.key==="Enter"&&manualInput.trim()){setManualItems(p=>[...p,manualInput.trim()]);setManualInput("");}}}
+                />
+                <button className="btn btn-primary btn-sm"
+                  onClick={()=>{if(manualInput.trim()){setManualItems(p=>[...p,manualInput.trim()]);setManualInput("");}}}
+                  disabled={!manualInput.trim()}>+ Add</button>
+              </div>
             </div>
           </div>
         </div>
