@@ -638,7 +638,6 @@ function PlannerTab({ mealPlan, recipes, addToDay, removeFromDay, pickerDay, set
 
   const openGroceryList = () => {
     setGroceryModal(true);
-    if (!groceryList) buildList(getPlannedRecipes(), false);
   };
 
   const updateGroceryList = () => {
