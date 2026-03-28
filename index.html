@@ -350,7 +350,15 @@ function App() {
 
   useEffect(() => {
     db.ref("recipes").once("value").then(snap => {
-      if (!snap.exists()) db.ref("recipes").set(SAMPLE_RECIPES);
+      if (!snap.exists()) {
+        db.ref("recipes").set(SAMPLE_RECIPES);
+      } else {
+        // Merge any new recipes from code that aren't in Firebase yet
+        const existing = snap.val();
+        const existingIds = new Set(existing.map(r=>r.id));
+        const newOnes = SAMPLE_RECIPES.filter(r=>!existingIds.has(r.id));
+        if (newOnes.length > 0) db.ref("recipes").set([...existing, ...newOnes]);
+      }
     }).catch(() => setSyncStatus("error"));
     db.ref("recipes").on("value", snap => { if(snap.exists()){setRecipes(snap.val());setSyncStatus("synced");}});
     db.ref("mealPlan").on("value", snap => { if(snap.exists()) setMealPlan(snap.val()); });
@@ -499,6 +507,7 @@ function PlannerTab({ mealPlan, recipes, addToDay, removeFromDay, pickerDay, set
   const [manualInput, setManualInput] = useState("");
   const [newSlotName, setNewSlotName] = useState("");
   const [addingSlot, setAddingSlot] = useState(false);
+  const [pickerSearch, setPickerSearch] = useState("");
 
   const customSlots = mealPlan.__customSlots__ || [];
 
@@ -673,12 +682,14 @@ function PlannerTab({ mealPlan, recipes, addToDay, removeFromDay, pickerDay, set
           <div className="modal" style={{maxWidth:380}} onClick={e=>e.stopPropagation()}>
             <div className="modal-header">
               <div className="modal-title" style={{fontSize:"1.4rem"}}>Add to {pickerDay}</div>
-              <button className="modal-close" onClick={()=>{setModal(null);setPickerDay(null);}}>✕</button>
+              <button className="modal-close" onClick={()=>{setModal(null);setPickerDay(null);setPickerSearch("");}}>✕</button>
             </div>
             <div className="modal-body">
+              <input className="search-input" style={{marginBottom:10}} placeholder="Search recipes…"
+                value={pickerSearch||""} onChange={e=>setPickerSearch(e.target.value)} />
               <div className="picker-list">
-                {recipes.map(r=>(
-                  <button key={r.id} className="picker-item" onClick={()=>{updateMealPlan(p=>({...p,[pickerDay]:[(r)]}));setModal(null);setPickerDay(null);}}>
+                {recipes.filter(r=>r.type==="food"&&(!pickerSearch||r.title.toLowerCase().includes(pickerSearch.toLowerCase()))).map(r=>(
+                  <button key={r.id} className="picker-item" onClick={()=>{addToDay(pickerDay,r);setPickerSearch("");}}>
                     <span>{r.title}</span>
                     <span style={{opacity:.6,fontSize:".75rem"}}>{r.time}m · {avgRating(r.ratings)?`★${avgRating(r.ratings)}`:""}</span>
                   </button>
