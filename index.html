@@ -483,6 +483,8 @@ function App() {
             modal={modal} setModal={setModal}
             updateMealPlan={updateMealPlan}
             prefs={prefs}
+            saveGrocery={(data)=>db.ref("grocery").set(data)}
+            loadGrocery={(cb)=>db.ref("grocery").once("value").then(s=>cb(s.exists()?s.val():null))}
           />
         )}
         {tab==="suggest" && <AISuggest recipes={recipes} prefs={prefs} onSaveRecipe={saveRecipe} />}
@@ -498,7 +500,7 @@ function App() {
 
 
 // ─── Planner Tab ──────────────────────────────────────────────────────────────
-function PlannerTab({ mealPlan, recipes, addToDay, removeFromDay, pickerDay, setPickerDay, modal, setModal, updateMealPlan, prefs }) {
+function PlannerTab({ mealPlan, recipes, addToDay, removeFromDay, pickerDay, setPickerDay, modal, setModal, updateMealPlan, prefs, saveGrocery, loadGrocery }) {
   const [groceryModal, setGroceryModal] = useState(false);
   const [groceryList, setGroceryList] = useState(null);
   const [groceryLoading, setGroceryLoading] = useState(false);
@@ -509,6 +511,22 @@ function PlannerTab({ mealPlan, recipes, addToDay, removeFromDay, pickerDay, set
   const [newSlotName, setNewSlotName] = useState("");
   const [addingSlot, setAddingSlot] = useState(false);
   const [pickerSearch, setPickerSearch] = useState("");
+
+  // Load grocery list from Firebase on mount
+  useEffect(() => {
+    loadGrocery(data => {
+      if (data) {
+        setGroceryList(data.list || null);
+        setManualItems(data.manual || []);
+        setChecked(data.checked || {});
+      }
+    });
+  }, []);
+
+  // Save grocery to Firebase whenever it changes (debounced)
+  const saveGroceryState = (list, manual, chk) => {
+    saveGrocery({ list: list || null, manual: manual || [], checked: chk || {} });
+  };
 
   const customSlots = Array.isArray(mealPlan.__customSlots__) ? mealPlan.__customSlots__ : [];
 
@@ -629,6 +647,7 @@ function PlannerTab({ mealPlan, recipes, addToDay, removeFromDay, pickerDay, set
 
   const clearGroceryList = () => {
     setGroceryList(null); setManualItems([]); setChecked({});
+    saveGroceryState(null, [], {});
   };
 
 
@@ -727,7 +746,7 @@ function PlannerTab({ mealPlan, recipes, addToDay, removeFromDay, pickerDay, set
                   {cat.items.map((item,i)=>{
                     const key = cat.name+i;
                     return (
-                      <div key={key} className={`grocery-item${checked[key]?" done":""}`} onClick={()=>setChecked(p=>({...p,[key]:!p[key]}))}>
+                      <div key={key} className={`grocery-item${checked[key]?" done":""}`} onClick={()=>{const next={...checked,[key]:!checked[key]};setChecked(next);saveGroceryState(groceryList,manualItems,next);}}>
                         <div className={`grocery-check${checked[key]?" checked":""}`}>{checked[key]&&"✓"}</div>
                         <span>{item}</span>
                       </div>
@@ -744,7 +763,7 @@ function PlannerTab({ mealPlan, recipes, addToDay, removeFromDay, pickerDay, set
                       <div key={key} className={`grocery-item${checked[key]?" done":""}`}>
                         <div className={`grocery-check${checked[key]?" checked":""}`} onClick={()=>setChecked(p=>({...p,[key]:!p[key]}))}>{checked[key]&&"✓"}</div>
                         <span style={{flex:1}} onClick={()=>setChecked(p=>({...p,[key]:!p[key]}))}>{item}</span>
-                        <button onClick={()=>setManualItems(p=>p.filter((_,j)=>j!==i))} style={{background:"none",border:"none",cursor:"pointer",color:"var(--muted)",fontSize:".85rem",padding:"0 4px"}}>✕</button>
+                        <button onClick={()=>{const next=manualItems.filter((_,j)=>j!==i);setManualItems(next);saveGroceryState(groceryList,next,checked);}} style={{background:"none",border:"none",cursor:"pointer",color:"var(--muted)",fontSize:".85rem",padding:"0 4px"}}>✕</button>
                       </div>
                     );
                   })}
@@ -756,10 +775,10 @@ function PlannerTab({ mealPlan, recipes, addToDay, removeFromDay, pickerDay, set
                 <input className="finput" style={{flex:1,padding:"7px 12px",fontSize:".85rem"}}
                   placeholder="Add an item…" value={manualInput}
                   onChange={e=>setManualInput(e.target.value)}
-                  onKeyDown={e=>{if(e.key==="Enter"&&manualInput.trim()){setManualItems(p=>[...p,manualInput.trim()]);setManualInput("");}}}
+                  onKeyDown={e=>{if(e.key==="Enter"&&manualInput.trim()){const next=[...manualItems,manualInput.trim()];setManualItems(next);saveGroceryState(groceryList,next,checked);setManualInput("");}}}
                 />
                 <button className="btn btn-primary btn-sm"
-                  onClick={()=>{if(manualInput.trim()){setManualItems(p=>[...p,manualInput.trim()]);setManualInput("");}}}
+                  onClick={()=>{if(manualInput.trim()){const next=[...manualItems,manualInput.trim()];setManualItems(next);saveGroceryState(groceryList,next,checked);setManualInput("");}}}
                   disabled={!manualInput.trim()}>+ Add</button>
               </div>
               <div style={{display:"flex",gap:8}}>
