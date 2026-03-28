@@ -621,6 +621,31 @@ function PlannerTab({ mealPlan, recipes, addToDay, removeFromDay, pickerDay, set
     setGroceryLoading(false);
   };
 
+  // Local state notes to avoid re-render focus loss
+  const PlanNotes = ({slotKey}) => {
+    const [localNote, setLocalNote] = React.useState(mealPlan["__notes__"+slotKey]||"");
+    React.useEffect(() => { setLocalNote(mealPlan["__notes__"+slotKey]||""); }, [slotKey]);
+    return (
+      <textarea className="planner-notes" rows={1} placeholder="notes, extras needed…"
+        value={localNote}
+        onChange={e=>setLocalNote(e.target.value)}
+        onBlur={e=>updateMealPlan(p=>({...p,["__notes__"+slotKey]:e.target.value}))}
+      />
+    );
+  };
+
+  const PlanNotes = ({slotKey, value, onSave}) => {
+    const [local, setLocal] = React.useState(value);
+    React.useEffect(()=>setLocal(value), [value]);
+    return (
+      <textarea className="planner-notes" rows={1} placeholder="notes, extras needed…"
+        value={local}
+        onChange={e=>setLocal(e.target.value)}
+        onBlur={()=>onSave(local)}
+      />
+    );
+  };
+
   const PlanCol = ({slotKey, label, isCustom}) => (
     <div className="planner-col">
       <div className={isCustom?"custom-slot-header":"planner-day"} style={isCustom?{}:{}}>
@@ -640,10 +665,7 @@ function PlannerTab({ mealPlan, recipes, addToDay, removeFromDay, pickerDay, set
           </div>
         ))}
         <button className="planner-add" onClick={()=>{setPickerDay(slotKey);setModal("pick");}}>+ add</button>
-        <textarea className="planner-notes" rows={1} placeholder="notes, extras needed…"
-          value={mealPlan["__notes__"+slotKey]||""}
-          onChange={e=>updateMealPlan(p=>({...p,["__notes__"+slotKey]:e.target.value}))}
-        />
+        <PlanNotes slotKey={slotKey} />
       </div>
     </div>
   );
