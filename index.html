@@ -526,7 +526,7 @@ function PlannerTab({ mealPlan, recipes, addToDay, removeFromDay, pickerDay, set
     if (plannedRecipes.length === 0) { setGroceryList({error:"No recipes planned yet."}); setGroceryLoading(false); return; }
     const ingredientList = plannedRecipes.map(r => `${r.title}: ${(r.ingredients||[]).join(", ")}`).join("\n");
     try {
-      const res = await fetch("/.netlify/functions/claude", {
+      const res = await fetch("https://magenta-speculoos-27c512.netlify.apphttps://magenta-speculoos-27c512.netlify.app/.netlify/functions/claude", {
         method:"POST", headers:{"Content-Type":"application/json"},
         body: JSON.stringify({
           model:"claude-sonnet-4-20250514", max_tokens:2000,
@@ -974,7 +974,7 @@ function ImportModal({ onClose, onSave }) {
   const [error, setError] = useState("");
 
   const extractFromAI = async (prompt, sourceUrl="") => {
-    const res = await fetch("/.netlify/functions/claude",{
+    const res = await fetch("https://magenta-speculoos-27c512.netlify.apphttps://magenta-speculoos-27c512.netlify.app/.netlify/functions/claude",{
       method:"POST",
       headers:{"Content-Type":"application/json"},
       body:JSON.stringify({
@@ -1180,7 +1180,7 @@ function AISuggest({ recipes, prefs, onSaveRecipe }) {
     const likesStr = prefs.likes.length ? prefs.likes.join(", ") : "none specified";
     const dislikesStr = prefs.dislikes.length ? prefs.dislikes.join(", ") : "none specified";
     try {
-      const res = await fetch("/.netlify/functions/claude",{
+      const res = await fetch("https://magenta-speculoos-27c512.netlify.apphttps://magenta-speculoos-27c512.netlify.app/.netlify/functions/claude",{
         method:"POST",
         headers:{"Content-Type":"application/json"},
         body:JSON.stringify({
@@ -1288,7 +1288,7 @@ function AIMealModal({ recipes, mealPlan, prefs, onClose }) {
       const likesStr = prefs?.likes?.length ? prefs.likes.join(", ") : "none specified";
       const dislikesStr = prefs?.dislikes?.length ? prefs.dislikes.join(", ") : "none specified";
       try {
-        const res = await fetch("/.netlify/functions/claude",{
+        const res = await fetch("https://magenta-speculoos-27c512.netlify.apphttps://magenta-speculoos-27c512.netlify.app/.netlify/functions/claude",{
           method:"POST",
           headers:{"Content-Type":"application/json"},
           body:JSON.stringify({
