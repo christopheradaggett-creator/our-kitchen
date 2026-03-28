@@ -510,7 +510,7 @@ function PlannerTab({ mealPlan, recipes, addToDay, removeFromDay, pickerDay, set
   const [addingSlot, setAddingSlot] = useState(false);
   const [pickerSearch, setPickerSearch] = useState("");
 
-  const customSlots = mealPlan.__customSlots__ || [];
+  const customSlots = Array.isArray(mealPlan.__customSlots__) ? mealPlan.__customSlots__ : [];
 
   const addCustomSlot = () => {
     const name = newSlotName.trim();
@@ -578,7 +578,7 @@ function PlannerTab({ mealPlan, recipes, addToDay, removeFromDay, pickerDay, set
   const getPlannedRecipes = () => {
     const allSlots = [...DAYS, ...customSlots];
     const plannedIds = new Set();
-    allSlots.forEach(slot => (mealPlan[slot]||[]).forEach(item => plannedIds.add(item.id)));
+    allSlots.forEach(slot => { const s = mealPlan[slot]; (Array.isArray(s)?s:Object.values(s||{})).forEach(item => item&&plannedIds.add(item.id)); });
     return recipes.filter(r => plannedIds.has(r.id));
   };
 
@@ -593,7 +593,7 @@ function PlannerTab({ mealPlan, recipes, addToDay, removeFromDay, pickerDay, set
         method:"POST", headers:{"Content-Type":"application/json"},
         body: JSON.stringify({
           model:"claude-sonnet-4-20250514", max_tokens:2000,
-          system:"You are a helpful grocery list organizer. Consolidate and deduplicate ingredients from multiple recipes. Group into: Produce, Meat & Seafood, Dairy & Eggs, Pantry & Dry Goods, Condiments & Sauces, Spices & Herbs, Bread & Bakery, Beverages, Other. Return ONLY valid JSON: {\"categories\": [{\"name\": \"Produce\", \"items\": [\"2 lemons\"]}]}. No markdown.",
+          system:"You are a helpful grocery list organizer. Consolidate and deduplicate ingredients from multiple recipes. Group into: Produce, Meat & Seafood, Dairy & Eggs, Pantry & Dry Goods, Condiments & Sauces, Spices & Herbs, Bread & Bakery, Beverages, Other. Return ONLY valid JSON with a categories array. No markdown.",
           messages:[{role:"user", content:"Recipes and ingredients:\n" + fullList}]
         })
       });
@@ -644,7 +644,7 @@ function PlannerTab({ mealPlan, recipes, addToDay, removeFromDay, pickerDay, set
         ) : label}
       </div>
       <div className="planner-slots">
-        {(mealPlan[slotKey]||[]).map((item,i)=>(
+        {(Array.isArray(mealPlan[slotKey])?mealPlan[slotKey]:Object.values(mealPlan[slotKey]||{})).map((item,i)=>item&&(
           <div key={i} className="planner-chip">
             <span className="planner-chip-text">{item.title}</span>
             <button className="chip-x" onClick={()=>removeFromDay(slotKey,i)}>✕</button>
