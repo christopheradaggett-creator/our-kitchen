@@ -516,41 +516,7 @@ function PlannerTab({ mealPlan, recipes, addToDay, removeFromDay, pickerDay, set
     });
   };
 
-  const buildFallbackList = (plannedRecipes) => {
-    const CATS = {
-      "Produce": ["lemon","lime","onion","garlic","tomato","pepper","basil","cilantro","parsley","thyme","broccoli","asparagus","spinach","lettuce","carrot","celery","ginger","scallion","green onion","apple","strawberr","avocado","fruit","vegetable"],
-      "Meat & Seafood": ["chicken","beef","steak","pork","lamb","turkey","shrimp","fish","salmon","bacon","sausage","ground","filet","tip"],
-      "Dairy & Eggs": ["egg","butter","milk","cream","cheese","mozzarella","romano","parmesan","ricotta","yogurt"],
-      "Bread & Bakery": ["bread","tortilla","baguette","sourdough","noodle","pasta","ziti","rigatoni","lasagna","vermicelli","rice","waffle"],
-      "Pantry & Dry Goods": ["flour","sugar","salt","oil","olive oil","broth","stock","can","tomato sauce","coconut milk","honey","syrup","vinegar","cornstarch","baking"],
-      "Condiments & Sauces": ["sauce","marinade","hot sauce","mustard","ketchup","soy","fish sauce","worcestershire","grenadine","salsa"],
-      "Spices & Herbs": ["pepper","cumin","oregano","paprika","cinnamon","cayenne","chili","spice","seasoning","bitters","vanilla","nutmeg"],
-      "Beverages": ["wine","beer","rum","gin","bourbon","tequila","vodka","juice","broth","coconut water"],
-    };
-    const categorized = {};
-    const seen = new Set();
-    Object.keys(CATS).forEach(c => { categorized[c] = []; });
-    categorized["Other"] = [];
-    const allIngredients = [];
-    plannedRecipes.forEach(r => (r.ingredients||[]).forEach(ing => allIngredients.push(ing)));
-    // Deduplicate by lowercased similarity
-    const deduped = [];
-    allIngredients.forEach(ing => {
-      const key = ing.toLowerCase().replace(/[^a-z]/g,"").slice(0,10);
-      if (!seen.has(key)) { seen.add(key); deduped.push(ing); }
-    });
-    deduped.forEach(ing => {
-      const lower = ing.toLowerCase();
-      let placed = false;
-      for (const [cat, keywords] of Object.entries(CATS)) {
-        if (keywords.some(k => lower.includes(k))) {
-          categorized[cat].push(ing); placed = true; break;
-        }
-      }
-      if (!placed) categorized["Other"].push(ing);
-    });
-    return { categories: Object.entries(categorized).filter(([,items])=>items.length>0).map(([name,items])=>({name,items})) };
-  };
+
 
   const buildFallbackList = (plannedRecipes) => {
     const CATS = {
