@@ -516,29 +516,101 @@ function PlannerTab({ mealPlan, recipes, addToDay, removeFromDay, pickerDay, set
     });
   };
 
+  const buildFallbackList = (plannedRecipes) => {
+    const CATS = {
+      "Produce": ["lemon","lime","onion","garlic","tomato","pepper","basil","cilantro","parsley","thyme","broccoli","asparagus","spinach","lettuce","carrot","celery","ginger","scallion","green onion","apple","strawberr","avocado","fruit","vegetable"],
+      "Meat & Seafood": ["chicken","beef","steak","pork","lamb","turkey","shrimp","fish","salmon","bacon","sausage","ground","filet","tip"],
+      "Dairy & Eggs": ["egg","butter","milk","cream","cheese","mozzarella","romano","parmesan","ricotta","yogurt"],
+      "Bread & Bakery": ["bread","tortilla","baguette","sourdough","noodle","pasta","ziti","rigatoni","lasagna","vermicelli","rice","waffle"],
+      "Pantry & Dry Goods": ["flour","sugar","salt","oil","olive oil","broth","stock","can","tomato sauce","coconut milk","honey","syrup","vinegar","cornstarch","baking"],
+      "Condiments & Sauces": ["sauce","marinade","hot sauce","mustard","ketchup","soy","fish sauce","worcestershire","grenadine","salsa"],
+      "Spices & Herbs": ["pepper","cumin","oregano","paprika","cinnamon","cayenne","chili","spice","seasoning","bitters","vanilla","nutmeg"],
+      "Beverages": ["wine","beer","rum","gin","bourbon","tequila","vodka","juice","broth","coconut water"],
+    };
+    const categorized = {};
+    const seen = new Set();
+    Object.keys(CATS).forEach(c => { categorized[c] = []; });
+    categorized["Other"] = [];
+    const allIngredients = [];
+    plannedRecipes.forEach(r => (r.ingredients||[]).forEach(ing => allIngredients.push(ing)));
+    // Deduplicate by lowercased similarity
+    const deduped = [];
+    allIngredients.forEach(ing => {
+      const key = ing.toLowerCase().replace(/[^a-z]/g,"").slice(0,10);
+      if (!seen.has(key)) { seen.add(key); deduped.push(ing); }
+    });
+    deduped.forEach(ing => {
+      const lower = ing.toLowerCase();
+      let placed = false;
+      for (const [cat, keywords] of Object.entries(CATS)) {
+        if (keywords.some(k => lower.includes(k))) {
+          categorized[cat].push(ing); placed = true; break;
+        }
+      }
+      if (!placed) categorized["Other"].push(ing);
+    });
+    return { categories: Object.entries(categorized).filter(([,items])=>items.length>0).map(([name,items])=>({name,items})) };
+  };
+
+  const buildFallbackList = (plannedRecipes) => {
+    const CATS = {
+      "Produce": ["lemon","lime","onion","garlic","tomato","pepper","basil","cilantro","parsley","thyme","broccoli","asparagus","spinach","carrot","ginger","scallion","green onion","apple","strawberr","avocado"],
+      "Meat & Seafood": ["chicken","beef","steak","pork","lamb","turkey","shrimp","fish","salmon","bacon","sausage","ground","filet","tip"],
+      "Dairy & Eggs": ["egg","butter","milk","cream","cheese","mozzarella","romano","parmesan","ricotta","yogurt"],
+      "Bread & Bakery": ["bread","tortilla","baguette","sourdough","noodle","pasta","ziti","rigatoni","lasagna","vermicelli","rice","waffle"],
+      "Pantry & Dry Goods": ["flour","sugar","salt","oil","olive oil","broth","stock","can","tomato sauce","coconut milk","honey","syrup","vinegar","cornstarch"],
+      "Condiments & Sauces": ["sauce","marinade","hot sauce","fish sauce","worcestershire","grenadine","salsa"],
+      "Spices & Herbs": ["pepper","cumin","oregano","paprika","cinnamon","cayenne","chili","spice","seasoning","bitters","vanilla","nutmeg"],
+      "Beverages": ["wine","beer","rum","gin","bourbon","tequila","vodka","juice"],
+    };
+    const categorized = {};
+    const seen = new Set();
+    Object.keys(CATS).forEach(c => { categorized[c] = []; });
+    categorized["Other"] = [];
+    const allIngredients = [];
+    plannedRecipes.forEach(r => (r.ingredients||[]).forEach(ing => allIngredients.push(ing)));
+    const deduped = [];
+    allIngredients.forEach(ing => {
+      const key = ing.toLowerCase().replace(/[^a-z]/g,"").slice(0,10);
+      if (!seen.has(key)) { seen.add(key); deduped.push(ing); }
+    });
+    deduped.forEach(ing => {
+      const lower = ing.toLowerCase();
+      let placed = false;
+      for (const [cat, keywords] of Object.entries(CATS)) {
+        if (keywords.some(k => lower.includes(k))) { categorized[cat].push(ing); placed = true; break; }
+      }
+      if (!placed) categorized["Other"].push(ing);
+    });
+    return { categories: Object.entries(categorized).filter(([,items])=>items.length>0).map(([name,items])=>({name,items})), fallback: true };
+  };
+
   const generateGroceryList = async () => {
     setGroceryLoading(true); setGroceryModal(true); setGroceryList(null); setChecked({}); setManualItems([]);
-    // Collect all planned recipes
     const allSlots = [...DAYS, ...customSlots];
     const plannedIds = new Set();
     allSlots.forEach(slot => (mealPlan[slot]||[]).forEach(item => plannedIds.add(item.id)));
     const plannedRecipes = recipes.filter(r => plannedIds.has(r.id));
     if (plannedRecipes.length === 0) { setGroceryList({error:"No recipes planned yet."}); setGroceryLoading(false); return; }
-    const ingredientList = plannedRecipes.map(r => `${r.title}: ${(r.ingredients||[]).join(", ")}`).join("\n");
+    const ingredientList = plannedRecipes.map(r => r.title + ": " + (r.ingredients||[]).join(", ")).join("\n");
     try {
-      const res = await fetch("https://magenta-speculoos-27c512.netlify.apphttps://magenta-speculoos-27c512.netlify.app/.netlify/functions/claude", {
+      const res = await fetch("https://magenta-speculoos-27c512.netlify.app/.netlify/functions/claude", {
         method:"POST", headers:{"Content-Type":"application/json"},
         body: JSON.stringify({
           model:"claude-sonnet-4-20250514", max_tokens:2000,
-          system:`You are a helpful grocery list organizer. Given a list of recipes and their ingredients, create a consolidated grocery list. Combine duplicates (e.g. multiple recipes using garlic = one garlic entry with combined quantity if possible). Group items into these categories: Produce, Meat & Seafood, Dairy & Eggs, Pantry & Dry Goods, Condiments & Sauces, Spices & Herbs, Bread & Bakery, Beverages, Other. Return ONLY valid JSON: {"categories": [{"name": "Produce", "items": ["2 lemons", "fresh basil"]}, ...]}. No markdown, raw JSON only.`,
-          messages:[{role:"user", content:`Here are the planned recipes and their ingredients:\n${ingredientList}\n\nCreate a consolidated grocery list grouped by category.`}]
+          system:"You are a helpful grocery list organizer. Consolidate and deduplicate ingredients from multiple recipes. Group into: Produce, Meat & Seafood, Dairy & Eggs, Pantry & Dry Goods, Condiments & Sauces, Spices & Herbs, Bread & Bakery, Beverages, Other. Return ONLY valid JSON: {\"categories\": [{\"name\": \"Produce\", \"items\": [\"2 lemons\"]}]}. No markdown.",
+          messages:[{role:"user", content:"Recipes and ingredients:\n" + ingredientList}]
         })
       });
+      if (!res.ok) throw new Error("unavailable");
       const data = await res.json();
+      if (data.error) throw new Error(data.error);
       const raw = data.content?.[0]?.text||"{}";
       const parsed = JSON.parse(raw.replace(/```json|```/g,"").trim());
       setGroceryList(parsed);
-    } catch(e) { setGroceryList({error:"Couldn't generate list. Try again."}); }
+    } catch(e) {
+      setGroceryList(buildFallbackList(plannedRecipes));
+    }
     setGroceryLoading(false);
   };
 
@@ -625,6 +697,7 @@ function PlannerTab({ mealPlan, recipes, addToDay, removeFromDay, pickerDay, set
             <div className="modal-body">
               {groceryLoading && <div className="typing"><span/><span/><span/><span style={{marginLeft:8,fontSize:".82rem",color:"var(--muted)"}}>Building your list…</span></div>}
               {groceryList?.error && <p style={{color:"var(--terra)",fontSize:".88rem"}}>{groceryList.error}</p>}
+              {groceryList?.fallback && <p style={{color:"var(--muted)",fontSize:".78rem",marginBottom:8,fontStyle:"italic"}}>AI unavailable - using smart categorization instead</p>}
               {groceryList?.categories && groceryList.categories.filter(c=>c.items?.length>0).map(cat=>(
                 <div key={cat.name} className="grocery-category">
                   <div className="grocery-category-label">{cat.name}</div>
@@ -974,7 +1047,7 @@ function ImportModal({ onClose, onSave }) {
   const [error, setError] = useState("");
 
   const extractFromAI = async (prompt, sourceUrl="") => {
-    const res = await fetch("https://magenta-speculoos-27c512.netlify.apphttps://magenta-speculoos-27c512.netlify.app/.netlify/functions/claude",{
+    const res = await fetch("https://magenta-speculoos-27c512.netlify.app/.netlify/functions/claude",{
       method:"POST",
       headers:{"Content-Type":"application/json"},
       body:JSON.stringify({
@@ -1180,7 +1253,7 @@ function AISuggest({ recipes, prefs, onSaveRecipe }) {
     const likesStr = prefs.likes.length ? prefs.likes.join(", ") : "none specified";
     const dislikesStr = prefs.dislikes.length ? prefs.dislikes.join(", ") : "none specified";
     try {
-      const res = await fetch("https://magenta-speculoos-27c512.netlify.apphttps://magenta-speculoos-27c512.netlify.app/.netlify/functions/claude",{
+      const res = await fetch("https://magenta-speculoos-27c512.netlify.app/.netlify/functions/claude",{
         method:"POST",
         headers:{"Content-Type":"application/json"},
         body:JSON.stringify({
@@ -1288,7 +1361,7 @@ function AIMealModal({ recipes, mealPlan, prefs, onClose }) {
       const likesStr = prefs?.likes?.length ? prefs.likes.join(", ") : "none specified";
       const dislikesStr = prefs?.dislikes?.length ? prefs.dislikes.join(", ") : "none specified";
       try {
-        const res = await fetch("https://magenta-speculoos-27c512.netlify.apphttps://magenta-speculoos-27c512.netlify.app/.netlify/functions/claude",{
+        const res = await fetch("https://magenta-speculoos-27c512.netlify.app/.netlify/functions/claude",{
           method:"POST",
           headers:{"Content-Type":"application/json"},
           body:JSON.stringify({
