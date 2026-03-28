@@ -651,7 +651,7 @@ function PlannerTab({ mealPlan, recipes, addToDay, removeFromDay, pickerDay, set
           </div>
         ))}
         <button className="planner-add" onClick={()=>{setPickerDay(slotKey);setModal("pick");}}>+ add</button>
-        <PlanNotes slotKey={slotKey} />
+        <textarea className="planner-notes" rows={1} placeholder="notes, extras needed…" value={mealPlan["__notes__"+slotKey]||""} onChange={e=>updateMealPlan(p=>({...p,["__notes__"+slotKey]:e.target.value}))} />
       </div>
     </div>
   );
@@ -661,7 +661,7 @@ function PlannerTab({ mealPlan, recipes, addToDay, removeFromDay, pickerDay, set
       <div className="sec-head">
         <h1 className="sec-title">Weekly Meal Plan</h1>
         <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-          <button className="btn btn-ghost btn-sm" onClick={openGroceryPicker}>🛒 Grocery List</button>
+          <button className="btn btn-ghost btn-sm" onClick={openGroceryList}>🛒 Grocery List</button>
           <button className="btn btn-primary" onClick={()=>setModal("aiMeal")}>✨ AI Suggestions</button>
         </div>
       </div>
@@ -708,39 +708,7 @@ function PlannerTab({ mealPlan, recipes, addToDay, removeFromDay, pickerDay, set
         </div>
       )}
 
-      {groceryPickerModal && (
-        <div className="overlay" onClick={()=>setGroceryPickerModal(false)}>
-          <div className="modal" style={{maxWidth:420}} onClick={e=>e.stopPropagation()}>
-            <div className="modal-header">
-              <div className="modal-title" style={{fontSize:"1.4rem"}}>🛒 Select Recipes</div>
-              <button className="modal-close" onClick={()=>setGroceryPickerModal(false)}>✕</button>
-            </div>
-            <div className="modal-body">
-              <p style={{fontSize:".82rem",color:"var(--muted)",marginBottom:12}}>Select all recipes you need ingredients for:</p>
-              <div className="picker-list">
-                {recipes.filter(r=>r.type==="food"&&!r.isSample).map(r=>(
-                  <div key={r.id} className="picker-item" style={{cursor:"pointer"}}
-                    onClick={()=>setSelectedRecipeIds(p=>p.includes(r.id)?p.filter(id=>id!==r.id):[...p,r.id])}>
-                    <div style={{display:"flex",alignItems:"center",gap:10}}>
-                      <div style={{width:18,height:18,border:"2px solid var(--border)",borderRadius:4,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",background:selectedRecipeIds.includes(r.id)?"var(--sage)":"white",borderColor:selectedRecipeIds.includes(r.id)?"var(--sage)":"var(--border)",transition:"all .15s"}}>
-                        {selectedRecipeIds.includes(r.id)&&<span style={{color:"white",fontSize:".7rem",fontWeight:700}}>✓</span>}
-                      </div>
-                      <span>{r.title}</span>
-                    </div>
-                    <span style={{opacity:.6,fontSize:".75rem"}}>{r.time}m</span>
-                  </div>
-                ))}
-              </div>
-              <div className="form-actions" style={{marginTop:16}}>
-                <button className="btn btn-primary" onClick={generateGroceryList} disabled={selectedRecipeIds.length===0}>
-                  Build List ({selectedRecipeIds.length} recipes)
-                </button>
-                <button className="btn btn-secondary" onClick={()=>setGroceryPickerModal(false)}>Cancel</button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+
 
       {groceryModal && (
         <div className="overlay" onClick={()=>setGroceryModal(false)}>
@@ -1331,7 +1299,7 @@ function AISuggest({ recipes, prefs, onSaveRecipe }) {
     setLoading(false);
   };
 
-  const saveRecipe = async (s, idx) => {
+  const saveToBook = async (s, idx) => {
     setSavingIdx(idx);
     const recipe = { id:genId(), isSample:false, type:"food", photo:null, ratings:{}, cookHistory:[], pairings:[], source:"",
       ...s, time:Number(s.time)||30, ease:Number(s.ease)||1,
@@ -1368,7 +1336,7 @@ function AISuggest({ recipes, prefs, onSaveRecipe }) {
                   <div style={{fontSize:".82rem",color:"var(--muted)",marginTop:3}}>{s.description}</div>
                 </div>
                 <button className="btn btn-primary btn-sm" style={{whiteSpace:"nowrap",flexShrink:0}}
-                  onClick={()=>saveRecipe(s,i)}
+                  onClick={()=>saveToBook(s,i)}
                   disabled={savingIdx===i||savedIdxs.includes(i)}>
                   {savedIdxs.includes(i)?"✓ Saved":savingIdx===i?"Saving…":"+ Save recipe"}
                 </button>
