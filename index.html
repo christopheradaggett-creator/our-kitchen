@@ -227,7 +227,9 @@ html,body{height:100%;background:var(--bg);font-family:'Jost',sans-serif;color:v
 .planner-freeform::placeholder{color:var(--muted);font-style:italic;}
 
 /* Grocery list */
-.grocery-modal{max-width:520px;}
+.grocery-modal{max-width:520px;display:flex;flex-direction:column;max-height:90vh;}
+.grocery-modal .modal-body{overflow-y:auto;-webkit-overflow-scrolling:touch;flex:1;}
+.grocery-footer{padding:14px 20px;border-top:1px solid var(--border);background:white;flex-shrink:0;}
 .grocery-category{margin-bottom:16px;}
 .grocery-category-label{font-size:.68rem;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:var(--terra);margin-bottom:8px;}
 .grocery-item{display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--border);font-size:.88rem;color:var(--ink);}
@@ -498,13 +500,12 @@ function App() {
 // ─── Planner Tab ──────────────────────────────────────────────────────────────
 function PlannerTab({ mealPlan, recipes, addToDay, removeFromDay, pickerDay, setPickerDay, modal, setModal, updateMealPlan, prefs }) {
   const [groceryModal, setGroceryModal] = useState(false);
-  const [groceryPickerModal, setGroceryPickerModal] = useState(false);
-  const [selectedRecipeIds, setSelectedRecipeIds] = useState([]);
   const [groceryList, setGroceryList] = useState(null);
   const [groceryLoading, setGroceryLoading] = useState(false);
   const [checked, setChecked] = useState({});
   const [manualItems, setManualItems] = useState([]);
   const [manualInput, setManualInput] = useState("");
+  const [lastPlannedIds, setLastPlannedIds] = useState([]);
   const [newSlotName, setNewSlotName] = useState("");
   const [addingSlot, setAddingSlot] = useState(false);
   const [pickerSearch, setPickerSearch] = useState("");
@@ -574,32 +575,26 @@ function PlannerTab({ mealPlan, recipes, addToDay, removeFromDay, pickerDay, set
     return { categories: Object.entries(categorized).filter(([,items])=>items.length>0).map(([name,items])=>({name,items})), fallback: true };
   };
 
-  const openGroceryPicker = () => {
-    // Pre-select recipes already in the meal plan
+  const getPlannedRecipes = () => {
     const allSlots = [...DAYS, ...customSlots];
     const plannedIds = new Set();
     allSlots.forEach(slot => (mealPlan[slot]||[]).forEach(item => plannedIds.add(item.id)));
-    setSelectedRecipeIds([...plannedIds]);
-    setGroceryPickerModal(true);
+    return recipes.filter(r => plannedIds.has(r.id));
   };
 
-  const generateGroceryList = async () => {
-    setGroceryPickerModal(false);
-    setGroceryLoading(true); setGroceryModal(true); setGroceryList(null); setChecked({}); setManualItems([]);
-    const plannedRecipes = recipes.filter(r => selectedRecipeIds.includes(r.id));
-    if (plannedRecipes.length === 0) { setGroceryList({error:"No recipes selected."}); setGroceryLoading(false); return; }
-    const ingredientList = plannedRecipes.map(r => r.title + ": " + (r.ingredients||[]).join(", ")).join("\n");
-    // Collect any slot notes and append as extra items
+  const buildList = async (plannedRecipes, keepManual) => {
+    setGroceryLoading(true);
     const allSlots = [...DAYS, ...customSlots];
     const extraNotes = allSlots.map(slot => mealPlan["__notes__"+slot]).filter(n=>n&&n.trim()).join(", ");
-    const fullIngredientList = extraNotes ? ingredientList + "\nExtra items needed: " + extraNotes : ingredientList;
+    const ingredientList = plannedRecipes.map(r => r.title + ": " + (r.ingredients||[]).join(", ")).join("\n");
+    const fullList = extraNotes ? ingredientList + "\nExtra items needed: " + extraNotes : ingredientList;
     try {
       const res = await fetch("https://lucky-bonus-4a7a.christopher-a-daggett.workers.dev", {
         method:"POST", headers:{"Content-Type":"application/json"},
         body: JSON.stringify({
           model:"claude-sonnet-4-20250514", max_tokens:2000,
           system:"You are a helpful grocery list organizer. Consolidate and deduplicate ingredients from multiple recipes. Group into: Produce, Meat & Seafood, Dairy & Eggs, Pantry & Dry Goods, Condiments & Sauces, Spices & Herbs, Bread & Bakery, Beverages, Other. Return ONLY valid JSON: {\"categories\": [{\"name\": \"Produce\", \"items\": [\"2 lemons\"]}]}. No markdown.",
-          messages:[{role:"user", content:"Recipes and ingredients:\n" + fullIngredientList}]
+          messages:[{role:"user", content:"Recipes and ingredients:\n" + fullList}]
         })
       });
       if (!res.ok) throw new Error("unavailable");
@@ -618,33 +613,24 @@ function PlannerTab({ mealPlan, recipes, addToDay, removeFromDay, pickerDay, set
       }
       setGroceryList(fb);
     }
+    if (!keepManual) { setManualItems([]); setChecked({}); }
+    setLastPlannedIds(plannedRecipes.map(r=>r.id));
     setGroceryLoading(false);
   };
 
-  // Local state notes to avoid re-render focus loss
-  const PlanNotes = ({slotKey}) => {
-    const [localNote, setLocalNote] = React.useState(mealPlan["__notes__"+slotKey]||"");
-    React.useEffect(() => { setLocalNote(mealPlan["__notes__"+slotKey]||""); }, [slotKey]);
-    return (
-      <textarea className="planner-notes" rows={1} placeholder="notes, extras needed…"
-        value={localNote}
-        onChange={e=>setLocalNote(e.target.value)}
-        onBlur={e=>updateMealPlan(p=>({...p,["__notes__"+slotKey]:e.target.value}))}
-      />
-    );
+  const openGroceryList = () => {
+    setGroceryModal(true);
+    if (!groceryList) buildList(getPlannedRecipes(), false);
   };
 
-  const PlanNotes = ({slotKey, value, onSave}) => {
-    const [local, setLocal] = React.useState(value);
-    React.useEffect(()=>setLocal(value), [value]);
-    return (
-      <textarea className="planner-notes" rows={1} placeholder="notes, extras needed…"
-        value={local}
-        onChange={e=>setLocal(e.target.value)}
-        onBlur={()=>onSave(local)}
-      />
-    );
+  const updateGroceryList = () => {
+    buildList(getPlannedRecipes(), true);
   };
+
+  const clearGroceryList = () => {
+    setGroceryList(null); setManualItems([]); setChecked({});
+  };
+
 
   const PlanCol = ({slotKey, label, isCustom}) => (
     <div className="planner-col">
@@ -766,7 +752,7 @@ function PlannerTab({ mealPlan, recipes, addToDay, removeFromDay, pickerDay, set
             <div className="modal-body">
               {groceryLoading && <div className="typing"><span/><span/><span/><span style={{marginLeft:8,fontSize:".82rem",color:"var(--muted)"}}>Building your list…</span></div>}
               {groceryList?.error && <p style={{color:"var(--terra)",fontSize:".88rem"}}>{groceryList.error}</p>}
-              {groceryList?.fallback && <p style={{color:"var(--muted)",fontSize:".78rem",marginBottom:8,fontStyle:"italic"}}>AI unavailable - using smart categorization instead</p>}
+              {groceryList?.fallback && <p style={{color:"var(--muted)",fontSize:".78rem",marginBottom:8,fontStyle:"italic"}}>AI unavailable — using smart categorization</p>}
               {groceryList?.categories && groceryList.categories.filter(c=>c.items?.length>0).map(cat=>(
                 <div key={cat.name} className="grocery-category">
                   <div className="grocery-category-label">{cat.name}</div>
@@ -781,8 +767,6 @@ function PlannerTab({ mealPlan, recipes, addToDay, removeFromDay, pickerDay, set
                   })}
                 </div>
               ))}
-
-              {/* Manual items */}
               {manualItems.length > 0 && (
                 <div className="grocery-category">
                   <div className="grocery-category-label">Added Manually</div>
@@ -798,19 +782,25 @@ function PlannerTab({ mealPlan, recipes, addToDay, removeFromDay, pickerDay, set
                   })}
                 </div>
               )}
-
-              {/* Add item input */}
-              <div style={{display:"flex",gap:8,marginTop:16,paddingTop:12,borderTop:"1px solid var(--border)"}}>
-                <input
-                  className="finput" style={{flex:1,padding:"7px 12px",fontSize:".85rem"}}
-                  placeholder="Add an item…"
-                  value={manualInput}
+            </div>
+            <div className="grocery-footer">
+              <div style={{display:"flex",gap:8,marginBottom:10}}>
+                <input className="finput" style={{flex:1,padding:"7px 12px",fontSize:".85rem"}}
+                  placeholder="Add an item…" value={manualInput}
                   onChange={e=>setManualInput(e.target.value)}
                   onKeyDown={e=>{if(e.key==="Enter"&&manualInput.trim()){setManualItems(p=>[...p,manualInput.trim()]);setManualInput("");}}}
                 />
                 <button className="btn btn-primary btn-sm"
                   onClick={()=>{if(manualInput.trim()){setManualItems(p=>[...p,manualInput.trim()]);setManualInput("");}}}
                   disabled={!manualInput.trim()}>+ Add</button>
+              </div>
+              <div style={{display:"flex",gap:8}}>
+                <button className="btn btn-ghost btn-sm" style={{flex:1}} onClick={updateGroceryList} disabled={groceryLoading}>
+                  🔄 Update from planner
+                </button>
+                <button className="btn btn-ghost btn-sm" style={{color:"var(--terra)"}} onClick={clearGroceryList}>
+                  Clear
+                </button>
               </div>
             </div>
           </div>
