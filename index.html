@@ -218,6 +218,14 @@ html,body{height:100%;background:var(--bg);font-family:'Jost',sans-serif;color:v
 .trusted-chip button{background:none;border:none;cursor:pointer;color:#90a4ae;font-size:.8rem;}
 
 
+
+/* Day sub-slots */
+.planner-subslot{margin-bottom:6px;}
+.planner-subslot-label{font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);margin-bottom:3px;}
+.planner-freeform{width:100%;border:1px dashed var(--border);border-radius:6px;padding:4px 7px;font-size:.75rem;font-family:'Jost',sans-serif;color:var(--ink);background:transparent;outline:none;resize:none;}
+.planner-freeform:focus{border-color:var(--terra);background:white;}
+.planner-freeform::placeholder{color:var(--muted);font-style:italic;}
+
 /* Grocery list */
 .grocery-modal{max-width:520px;}
 .grocery-category{margin-bottom:16px;}
@@ -228,6 +236,9 @@ html,body{height:100%;background:var(--bg);font-family:'Jost',sans-serif;color:v
 .grocery-check.checked{background:var(--sage);border-color:var(--sage);color:white;}
 .grocery-item.done span{text-decoration:line-through;opacity:.45;}
 
+.planner-notes{width:100%;border:none;border-top:1px solid var(--border);padding:5px 8px;font-family:'Jost',sans-serif;font-size:.7rem;color:var(--muted);resize:none;outline:none;background:transparent;min-height:28px;line-height:1.4;}
+.planner-notes:focus{color:var(--ink);background:var(--warm);}
+.planner-notes::placeholder{color:var(--border);}
 /* Custom planner slots */
 .custom-slot-header{display:flex;align-items:center;justify-content:space-between;background:var(--sage);color:#fff;padding:8px 10px;font-size:.7rem;font-weight:600;letter-spacing:.05em;}
 .custom-slot-name{flex:1;font-size:.75rem;font-weight:600;color:#fff;background:none;border:none;outline:none;cursor:text;font-family:'Jost',sans-serif;}
@@ -321,6 +332,7 @@ const SAMPLE_RECIPES = [
   { id:"r27", isSample:false, type:"food", title:"Lasagna", category:"everyday", description:"Karen Daggetts family lasagna - layered with a rich beef and ricotta filling, Romano and mozzarella, baked until bubbly.", time:90, ease:2, ingredients:["lasagna noodles","ground beef, cooked","ricotta cheese","3 eggs","Romano cheese, grated (plus extra to serve)","mozzarella cheese, shredded","your favorite tomato sauce","2 cloves garlic","handful of Italian parsley, chopped","ground black pepper to taste","salt to taste"], steps:["Pre-heat oven to 350 degrees F. Boil the noodles - do not cook fully as they will cook more in the oven.","Cook the ground beef.","In a bowl, combine ricotta cheese, 3 eggs, 1 cup Romano cheese, cooked ground beef, garlic, parsley, salt and pepper. Mix well.","In a lasagna pan, layer in this order: sauce on the bottom, noodles, cheese mixture, sauce (lightly - just cover the cheese), sprinkling of Romano, mozzarella cheese.","Repeat the layers.","End with a top layer of noodles, sauce, Romano cheese, and mozzarella.","Cover and bake about 45 minutes.","Serve with extra sauce and Romano cheese."], tags:["italian","pasta","baked","family","crowd"], ratings:{}, cookHistory:[], pairings:[], notes:"From Karen Daggett. Originally shared with Ada and Oscar. Do not over-boil the noodles - they finish cooking in the oven.", photo:null, source:"" },
   { id:"r28", isSample:false, type:"food", title:"Chicken with Broccoli and Ziti", category:"everyday", description:"Karens quick pan-sauced chicken with broccoli, lemon, white wine and Romano over ziti - things move fast so have everything ready.", time:35, ease:2, ingredients:["chicken breast, cut into pieces","1 box ziti or similar lined pasta","frozen broccoli (or fresh)","1 cup or more white cooking wine","1/2 cup chicken broth","2 cloves garlic (or minced equivalent)","juice of 2 lemons","1 cup or more grated Romano cheese","1/4 tsp black pepper","red pepper flakes to taste","1/4 cup flour","1 cup olive oil for cooking (a pat of butter is a nice addition)"], steps:["Measure and prep all ingredients before starting - lemon juiced and de-seeded, broccoli defrosted. Things move quickly.","Start boiling salted water for the ziti. Cook pasta al dente - never over-cook as it continues cooking when it comes out steaming.","Place flour and black pepper in a zip-lock bag. Add chicken and shake. Do not leave too long or chicken gets sticky.","Heat olive oil in fry pan - do not overheat. Test with a tiny piece of chicken - if it sizzles, the oil is ready.","Add garlic and stir quickly - do not burn. Add chicken and cook well, turning. The flour will brown on the bottom - you want it browned but not burned.","Add wine and stir, scraping up the browned bits from the bottom - this thickens the sauce. Add chicken broth and lemon juice. Stir.","Turn down heat and let cook a few minutes. Add pepper flakes and broccoli. Put lid on for a few minutes to let broccoli steam.","Drain ziti and add everything to a large serving dish. Mix gently. When slightly cooled, add Romano cheese to taste - use a lot."], tags:["chicken","pasta","italian","quick","family"], ratings:{}, cookHistory:[], pairings:[], notes:"From Karen Daggett. Have everything ready before you start - this moves fast. Be prepared to serve warm. Use a lot of Romano at the end.", photo:null, source:"" },
   { id:"r29", isSample:false, type:"food", title:"Steak Tips", category:"everyday", description:"The family favorite - steak tips marinated in Doms marinade for 4+ hours then grilled. Five stars across the board.", time:30, ease:1, ingredients:["2 lbs steak tips","Doms marinade"], steps:["Coat steak tips generously in Doms marinade.","Marinate for at least 4 hours - overnight is even better.","Grill over high heat to desired doneness.","Rest a few minutes before serving."], tags:["steak","grilling","family favorite","red meat"], ratings:{Chris:5,Sarah:5,Nora:5,Elizabeth:5,Luke:5}, cookHistory:[], pairings:[], notes:"A household staple. The longer the marinade the better.", photo:null, source:"" },
+  { id:"r30", isSample:false, type:"food", title:"Baked Lemon Salmon", category:"healthy", description:"Simple, clean baked salmon with lemon and garlic. Ready in 20 minutes.", time:25, ease:1, ingredients:["3 salmon filets","1/2 lemon, juiced","garlic powder","pinch of salt","3 lemon slices"], steps:["Preheat oven to 400 degrees F.","Place salmon filets in a baking dish.","Squeeze half a lemon over the filets.","Dust each filet lightly with garlic powder and a pinch of salt.","Place a lemon slice on top of each filet.","Bake for 20 minutes."], tags:["salmon","fish","healthy","quick","lemon"], ratings:{}, cookHistory:[], pairings:["r5"], notes:"", photo:null, source:"" },
 ];
 
 // ─── Main App ─────────────────────────────────────────────────────────────────
@@ -478,6 +490,8 @@ function App() {
 // ─── Planner Tab ──────────────────────────────────────────────────────────────
 function PlannerTab({ mealPlan, recipes, addToDay, removeFromDay, pickerDay, setPickerDay, modal, setModal, updateMealPlan, prefs }) {
   const [groceryModal, setGroceryModal] = useState(false);
+  const [groceryPickerModal, setGroceryPickerModal] = useState(false);
+  const [selectedRecipeIds, setSelectedRecipeIds] = useState([]);
   const [groceryList, setGroceryList] = useState(null);
   const [groceryLoading, setGroceryLoading] = useState(false);
   const [checked, setChecked] = useState({});
@@ -551,21 +565,32 @@ function PlannerTab({ mealPlan, recipes, addToDay, removeFromDay, pickerDay, set
     return { categories: Object.entries(categorized).filter(([,items])=>items.length>0).map(([name,items])=>({name,items})), fallback: true };
   };
 
-  const generateGroceryList = async () => {
-    setGroceryLoading(true); setGroceryModal(true); setGroceryList(null); setChecked({}); setManualItems([]);
+  const openGroceryPicker = () => {
+    // Pre-select recipes already in the meal plan
     const allSlots = [...DAYS, ...customSlots];
     const plannedIds = new Set();
     allSlots.forEach(slot => (mealPlan[slot]||[]).forEach(item => plannedIds.add(item.id)));
-    const plannedRecipes = recipes.filter(r => plannedIds.has(r.id));
-    if (plannedRecipes.length === 0) { setGroceryList({error:"No recipes planned yet."}); setGroceryLoading(false); return; }
+    setSelectedRecipeIds([...plannedIds]);
+    setGroceryPickerModal(true);
+  };
+
+  const generateGroceryList = async () => {
+    setGroceryPickerModal(false);
+    setGroceryLoading(true); setGroceryModal(true); setGroceryList(null); setChecked({}); setManualItems([]);
+    const plannedRecipes = recipes.filter(r => selectedRecipeIds.includes(r.id));
+    if (plannedRecipes.length === 0) { setGroceryList({error:"No recipes selected."}); setGroceryLoading(false); return; }
     const ingredientList = plannedRecipes.map(r => r.title + ": " + (r.ingredients||[]).join(", ")).join("\n");
+    // Collect any slot notes and append as extra items
+    const allSlots = [...DAYS, ...customSlots];
+    const extraNotes = allSlots.map(slot => mealPlan["__notes__"+slot]).filter(n=>n&&n.trim()).join(", ");
+    const fullIngredientList = extraNotes ? ingredientList + "\nExtra items needed: " + extraNotes : ingredientList;
     try {
       const res = await fetch("https://lucky-bonus-4a7a.christopher-a-daggett.workers.dev", {
         method:"POST", headers:{"Content-Type":"application/json"},
         body: JSON.stringify({
           model:"claude-sonnet-4-20250514", max_tokens:2000,
           system:"You are a helpful grocery list organizer. Consolidate and deduplicate ingredients from multiple recipes. Group into: Produce, Meat & Seafood, Dairy & Eggs, Pantry & Dry Goods, Condiments & Sauces, Spices & Herbs, Bread & Bakery, Beverages, Other. Return ONLY valid JSON: {\"categories\": [{\"name\": \"Produce\", \"items\": [\"2 lemons\"]}]}. No markdown.",
-          messages:[{role:"user", content:"Recipes and ingredients:\n" + ingredientList}]
+          messages:[{role:"user", content:"Recipes and ingredients:\n" + fullIngredientList}]
         })
       });
       if (!res.ok) throw new Error("unavailable");
@@ -575,7 +600,14 @@ function PlannerTab({ mealPlan, recipes, addToDay, removeFromDay, pickerDay, set
       const parsed = JSON.parse(raw.replace(/```json|```/g,"").trim());
       setGroceryList(parsed);
     } catch(e) {
-      setGroceryList(buildFallbackList(plannedRecipes));
+      const fb = buildFallbackList(plannedRecipes);
+      if (extraNotes) {
+        const otherCat = fb.categories.find(c=>c.name==="Other");
+        const extras = extraNotes.split(/,|;/).map(s=>s.trim()).filter(Boolean);
+        if (otherCat) otherCat.items.push(...extras);
+        else fb.categories.push({name:"Other",items:extras});
+      }
+      setGroceryList(fb);
     }
     setGroceryLoading(false);
   };
@@ -599,6 +631,10 @@ function PlannerTab({ mealPlan, recipes, addToDay, removeFromDay, pickerDay, set
           </div>
         ))}
         <button className="planner-add" onClick={()=>{setPickerDay(slotKey);setModal("pick");}}>+ add</button>
+        <textarea className="planner-notes" rows={1} placeholder="notes, extras needed…"
+          value={mealPlan["__notes__"+slotKey]||""}
+          onChange={e=>updateMealPlan(p=>({...p,["__notes__"+slotKey]:e.target.value}))}
+        />
       </div>
     </div>
   );
@@ -608,7 +644,7 @@ function PlannerTab({ mealPlan, recipes, addToDay, removeFromDay, pickerDay, set
       <div className="sec-head">
         <h1 className="sec-title">Weekly Meal Plan</h1>
         <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-          <button className="btn btn-ghost btn-sm" onClick={generateGroceryList}>🛒 Grocery List</button>
+          <button className="btn btn-ghost btn-sm" onClick={openGroceryPicker}>🛒 Grocery List</button>
           <button className="btn btn-primary" onClick={()=>setModal("aiMeal")}>✨ AI Suggestions</button>
         </div>
       </div>
@@ -641,12 +677,46 @@ function PlannerTab({ mealPlan, recipes, addToDay, removeFromDay, pickerDay, set
             </div>
             <div className="modal-body">
               <div className="picker-list">
-                {recipes.filter(r=>r.type==="food").map(r=>(
-                  <button key={r.id} className="picker-item" onClick={()=>addToDay(pickerDay,r)}>
+                {recipes.map(r=>(
+                  <button key={r.id} className="picker-item" onClick={()=>{updateMealPlan(p=>({...p,[pickerDay]:[(r)]}));setModal(null);setPickerDay(null);}}>
                     <span>{r.title}</span>
                     <span style={{opacity:.6,fontSize:".75rem"}}>{r.time}m · {avgRating(r.ratings)?`★${avgRating(r.ratings)}`:""}</span>
                   </button>
                 ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {groceryPickerModal && (
+        <div className="overlay" onClick={()=>setGroceryPickerModal(false)}>
+          <div className="modal" style={{maxWidth:420}} onClick={e=>e.stopPropagation()}>
+            <div className="modal-header">
+              <div className="modal-title" style={{fontSize:"1.4rem"}}>🛒 Select Recipes</div>
+              <button className="modal-close" onClick={()=>setGroceryPickerModal(false)}>✕</button>
+            </div>
+            <div className="modal-body">
+              <p style={{fontSize:".82rem",color:"var(--muted)",marginBottom:12}}>Select all recipes you need ingredients for:</p>
+              <div className="picker-list">
+                {recipes.filter(r=>r.type==="food"&&!r.isSample).map(r=>(
+                  <div key={r.id} className="picker-item" style={{cursor:"pointer"}}
+                    onClick={()=>setSelectedRecipeIds(p=>p.includes(r.id)?p.filter(id=>id!==r.id):[...p,r.id])}>
+                    <div style={{display:"flex",alignItems:"center",gap:10}}>
+                      <div style={{width:18,height:18,border:"2px solid var(--border)",borderRadius:4,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",background:selectedRecipeIds.includes(r.id)?"var(--sage)":"white",borderColor:selectedRecipeIds.includes(r.id)?"var(--sage)":"var(--border)",transition:"all .15s"}}>
+                        {selectedRecipeIds.includes(r.id)&&<span style={{color:"white",fontSize:".7rem",fontWeight:700}}>✓</span>}
+                      </div>
+                      <span>{r.title}</span>
+                    </div>
+                    <span style={{opacity:.6,fontSize:".75rem"}}>{r.time}m</span>
+                  </div>
+                ))}
+              </div>
+              <div className="form-actions" style={{marginTop:16}}>
+                <button className="btn btn-primary" onClick={generateGroceryList} disabled={selectedRecipeIds.length===0}>
+                  Build List ({selectedRecipeIds.length} recipes)
+                </button>
+                <button className="btn btn-secondary" onClick={()=>setGroceryPickerModal(false)}>Cancel</button>
               </div>
             </div>
           </div>
