@@ -349,6 +349,7 @@ function App() {
     try { const id = localStorage.getItem("ok_open_recipe"); return id ? null : null; } catch { return null; }
   });
   const [modal, setModal] = useState(null);
+  const [editRecipe, setEditRecipe] = useState(null);
   const [pickerDay, setPickerDay] = useState(null);
   const [filters, setFilters] = useState({search:"",category:"all",ease:"all",maxTime:"",minRating:""});
 
@@ -514,8 +515,9 @@ function App() {
         {tab==="suggest" && <AISuggest recipes={recipes} prefs={prefs} onSaveRecipe={saveRecipe} />}
         {tab==="export" && <ExportPanel recipes={recipes} setRecipes={(d)=>db.ref("recipes").set(d)} trustedSources={trustedSources} setTrustedSources={(fn)=>{const next=typeof fn==="function"?fn(trustedSources):fn;db.ref("trustedSources").set(next);}} />}
       </main>
-      {detail&&<RecipeDetail recipe={detail} allRecipes={recipes} trustedSources={trustedSources} onClose={()=>setDetail(null)} onSave={(r)=>{saveRecipe(r);setDetail(r);}} />}
+      {detail&&<RecipeDetail recipe={detail} allRecipes={recipes} trustedSources={trustedSources} onClose={()=>setDetail(null)} onSave={(r)=>{saveRecipe(r);setDetail(r);}} onEdit={(r)=>{setEditRecipe(r);}} />}
       {modal==="add"&&<RecipeForm type={type} onClose={()=>setModal(null)} onSave={(r)=>{saveRecipe(r);setModal(null);}} />}
+      {editRecipe&&<RecipeForm type={editRecipe.type} initial={editRecipe} isEdit={true} onClose={()=>setEditRecipe(null)} onSave={(r)=>{saveRecipe(r);setDetail(r);setEditRecipe(null);}} />}
       {modal==="import"&&<ImportModal onClose={()=>setModal(null)} onSave={(r)=>{saveRecipe(r);setModal(null);}} />}
       {modal==="aiMeal"&&<AIMealModal recipes={recipes} mealPlan={mealPlan} prefs={prefs} onClose={()=>setModal(null)} />}
     </div>
@@ -821,7 +823,7 @@ function PlannerTab({ mealPlan, recipes, addToDay, removeFromDay, pickerDay, set
 }
 
 // ─── Recipe Detail ────────────────────────────────────────────────────────────
-function RecipeDetail({ recipe, allRecipes, trustedSources, onClose, onSave }) {
+function RecipeDetail({ recipe, allRecipes, trustedSources, onClose, onSave, onEdit }) {
   const [r, setR] = useState(recipe);
   const [editingTweaks, setEditingTweaks] = useState(false);
   const [tweaksDraft, setTweaksDraft] = useState(recipe.tweaks||"");
@@ -1049,10 +1051,16 @@ function RecipeDetail({ recipe, allRecipes, trustedSources, onClose, onSave }) {
 }
 
 // ─── Recipe Form ──────────────────────────────────────────────────────────────
-function RecipeForm({ type, onClose, onSave, initial }) {
-  const [f, setF] = useState(initial || {
-    id:genId(), type, title:"", category:"everyday", description:"", time:30, ease:1,
-    ingredients:"", steps:"", tags:"", notes:"", source:"", photo:null, ratings:{}, cookHistory:[], pairings:[]
+function RecipeForm({ type, onClose, onSave, initial, isEdit }) {
+  const [f, setF] = useState(() => {
+    if (initial) return {
+      ...initial,
+      ingredients: Array.isArray(initial.ingredients) ? initial.ingredients.join("\n") : (initial.ingredients||""),
+      steps: Array.isArray(initial.steps) ? initial.steps.join("\n") : (initial.steps||""),
+      tags: Array.isArray(initial.tags) ? initial.tags.join(", ") : (initial.tags||""),
+    };
+    return { id:genId(), type, title:"", category:"everyday", description:"", time:30, ease:1,
+      ingredients:"", steps:"", tags:"", notes:"", source:"", photo:null, ratings:{}, cookHistory:[], pairings:[] };
   });
   const set = (k,v) => setF(p=>({...p,[k]:v}));
 
@@ -1076,7 +1084,7 @@ function RecipeForm({ type, onClose, onSave, initial }) {
     <div className="overlay" onClick={onClose}>
       <div className="modal" onClick={e=>e.stopPropagation()}>
         <div className="modal-header">
-          <div className="modal-title" style={{fontSize:"1.5rem"}}>New {type==="cocktail"?"Drink":"Recipe"}</div>
+          <div className="modal-title" style={{fontSize:"1.5rem"}}>{isEdit?"Edit":"New"} {type==="cocktail"?"Drink":"Recipe"}</div>
           <button className="modal-close" onClick={onClose}>✕</button>
         </div>
         <div className="modal-body">
