@@ -395,6 +395,11 @@ function App() {
     } catch {}
   }, [detail]);
 
+  const deleteRecipe = (id) => {
+    const updated = recipes.filter(r => r.id !== id);
+    db.ref("recipes").set(updated);
+  };
+
   const saveRecipe = (r) => {
     const updated = recipes.findIndex(x=>x.id===r.id)>=0 ? recipes.map(x=>x.id===r.id?r:x) : [r,...recipes];
     db.ref("recipes").set(updated);
@@ -516,7 +521,7 @@ function App() {
         {tab==="suggest" && <AISuggest recipes={recipes} prefs={prefs} onSaveRecipe={saveRecipe} />}
         {tab==="export" && <ExportPanel recipes={recipes} setRecipes={(d)=>db.ref("recipes").set(d)} trustedSources={trustedSources} setTrustedSources={(fn)=>{const next=typeof fn==="function"?fn(trustedSources):fn;db.ref("trustedSources").set(next);}} />}
       </main>
-      {detail&&<RecipeDetail recipe={detail} allRecipes={recipes} trustedSources={trustedSources} onClose={()=>setDetail(null)} onSave={(r)=>{saveRecipe(r);setDetail(r);}} onEdit={(r)=>{setEditRecipe(r);}} />}
+      {detail&&<RecipeDetail recipe={detail} allRecipes={recipes} trustedSources={trustedSources} onClose={()=>setDetail(null)} onSave={(r)=>{saveRecipe(r);setDetail(r);}} onEdit={(r)=>{setEditRecipe(r);}} onDelete={(id)=>{deleteRecipe(id);setDetail(null);}} />}
       {modal==="add"&&<RecipeForm type={type} onClose={()=>setModal(null)} onSave={(r)=>{saveRecipe(r);setModal(null);}} />}
       {editRecipe&&<RecipeForm type={editRecipe.type} initial={editRecipe} isEdit={true} onClose={()=>setEditRecipe(null)} onSave={(r)=>{saveRecipe(r);setDetail(r);setEditRecipe(null);}} />}
       {modal==="import"&&<ImportModal onClose={()=>setModal(null)} onSave={(r)=>{saveRecipe(r);setModal(null);}} />}
@@ -824,7 +829,7 @@ function PlannerTab({ mealPlan, recipes, addToDay, removeFromDay, pickerDay, set
 }
 
 // ─── Recipe Detail ────────────────────────────────────────────────────────────
-function RecipeDetail({ recipe, allRecipes, trustedSources, onClose, onSave, onEdit }) {
+function RecipeDetail({ recipe, allRecipes, trustedSources, onClose, onSave, onEdit, onDelete }) {
   const [r, setR] = useState(recipe);
   const [editingTweaks, setEditingTweaks] = useState(false);
   const [tweaksDraft, setTweaksDraft] = useState(recipe.tweaks||"");
@@ -900,6 +905,7 @@ function RecipeDetail({ recipe, allRecipes, trustedSources, onClose, onSave, onE
           <div style={{display:"flex",flexDirection:"column",gap:6,alignItems:"flex-end"}}>
             <button className="modal-close" onClick={onClose}>✕</button>
             {!r.isSample && onEdit && <button className="btn btn-ghost btn-sm" style={{fontSize:".72rem",padding:"3px 10px"}} onClick={()=>onEdit(r)}>✏️ Edit</button>}
+            {!r.isSample && onDelete && <button className="btn btn-ghost btn-sm" style={{fontSize:".72rem",padding:"3px 10px",color:"var(--terra)"}} onClick={()=>{if(window.confirm("Delete " + r.title + "?")) onDelete(r.id);}}>🗑 Delete</button>}
           </div>
         </div>
         <div className="modal-body">
