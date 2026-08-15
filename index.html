@@ -304,8 +304,16 @@ if (!window.firebase.apps.length) window.firebase.initializeApp(firebaseConfig);
 const db = window.firebase.database();
 
 // ─── AI model resolution (survives model retirements) ────────────────────────
-const BUILD = "b12";
+const BUILD = "b13";
 const AI_URL = "https://lucky-bonus-4a7a.christopher-a-daggett.workers.dev";
+
+// Firebase hands back an object (not an array) whenever an array has gaps.
+// Everything that reads a list from Firebase goes through this.
+function toArr(v) {
+  if (Array.isArray(v)) return v.filter(function(x){ return x; });
+  if (v && typeof v === "object") return Object.keys(v).map(function(k){ return v[k]; }).filter(function(x){ return x; });
+  return [];
+}
 const DEFAULT_MODELS = ["claude-sonnet-5","claude-haiku-4-5-20251001","claude-sonnet-4-5","claude-sonnet-4-20250514"];
 let MODEL_CHAIN = DEFAULT_MODELS.slice();
 let AI_MODEL = MODEL_CHAIN[0];
@@ -421,16 +429,23 @@ function App() {
       if (!snap.exists()) {
         db.ref("recipes").set(SAMPLE_RECIPES);
       } else {
-        // Merge any new recipes from code that aren't in Firebase yet
-        const existing = snap.val();
+        // Merge new recipes from code, and drop any duplicate titles already stored
+        const raw = toArr(snap.val());
+        const byTitle = new Map();
+        raw.forEach(function(r){
+          if (!r || !r.title) return;
+          if (!byTitle.has(r.title) || r.isSample === false) byTitle.set(r.title, r);
+        });
+        const existing = Array.from(byTitle.values());
         const existingIds = new Set(existing.map(r=>r.id));
-        const newOnes = SAMPLE_RECIPES.filter(r=>!existingIds.has(r.id));
-        if (newOnes.length > 0) db.ref("recipes").set([...existing, ...newOnes]);
+        const newOnes = SAMPLE_RECIPES.filter(r=>!existingIds.has(r.id) && !byTitle.has(r.title));
+        const merged = newOnes.length > 0 ? existing.concat(newOnes) : existing;
+        if (merged.length !== raw.length) db.ref("recipes").set(merged);
       }
     }).catch(() => setSyncStatus("error"));
     db.ref("recipes").on("value", snap => {
       if(snap.exists()){
-        const loaded = snap.val();
+        const loaded = toArr(snap.val());
         setRecipes(loaded);
         setSyncStatus("synced");
         // Restore previously open recipe
@@ -1976,8 +1991,31 @@ function GuestMenu({ barId }) {
   );
 }
 
+class Boundary extends React.Component {
+  constructor(props){ super(props); this.state = { err: null }; }
+  static getDerivedStateFromError(err){ return { err: err }; }
+  componentDidCatch(err, info){ try { console.error(err, info); } catch(e) {} }
+  render(){
+    if (!this.state.err) return this.props.children;
+    return (
+      <div style={{padding:"28px 20px",fontFamily:"'Jost',sans-serif",maxWidth:560,margin:"0 auto"}}>
+        <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:"1.7rem",color:"#1c1410",marginBottom:8}}>Something broke</div>
+        <p style={{fontSize:".85rem",color:"#6b5d4f",lineHeight:1.6}}>The app hit an error instead of loading. The details below help pin it down.</p>
+        <pre style={{background:"#f3ede4",padding:"12px 14px",borderRadius:8,fontSize:".72rem",whiteSpace:"pre-wrap",wordBreak:"break-word",color:"#8a3a1a"}}>
+          {String(this.state.err && this.state.err.message ? this.state.err.message : this.state.err)}
+        </pre>
+        <p style={{fontSize:".72rem",color:"#6b5d4f"}}>build {BUILD}</p>
+        <button style={{background:"#b8562a",color:"#fff",border:"none",borderRadius:22,padding:"10px 18px",fontSize:".85rem",cursor:"pointer",marginTop:8}}
+          onClick={()=>{ try{ localStorage.removeItem("ok_open_recipe"); localStorage.removeItem("ok_ai_model"); }catch(e){} window.location.reload(); }}>
+          Clear local data and reload
+        </button>
+      </div>
+    );
+  }
+}
+
 const BAR_ID = new URLSearchParams(window.location.search).get("bar");
-ReactDOM.createRoot(document.getElementById('root')).render(BAR_ID ? <GuestMenu barId={BAR_ID} /> : <App />);
+ReactDOM.createRoot(document.getElementById('root')).render(<Boundary>{BAR_ID ? <GuestMenu barId={BAR_ID} /> : <App />}</Boundary>);
 </script>
 
 <script>

@@ -1,4 +1,4 @@
-const CACHE = 'our-kitchen-b12';
+const CACHE = "our-kitchen-b13";
 
 self.addEventListener('install', e => { self.skipWaiting(); });
 
