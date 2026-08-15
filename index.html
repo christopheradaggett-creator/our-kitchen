@@ -16,6 +16,7 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Jost:wght@300;400;500;600&display=swap');
@@ -258,12 +259,36 @@ html,body{height:100%;background:var(--bg);font-family:'Jost',sans-serif;color:v
   .content{padding:20px 14px;}
   .grid{grid-template-columns:1fr;}
 }
+
+/* Bar / cocktail menu */
+.bar-wrap{max-width:760px;}
+.bar-card{background:#fff;border:1px solid var(--border);border-radius:12px;padding:18px;margin-bottom:16px;}
+.bar-qr{display:flex;flex-direction:column;align-items:center;gap:10px;padding:16px;background:#fff;border-radius:12px;}
+.bar-qr canvas,.bar-qr img{border-radius:8px;}
+.bar-link{font-size:.72rem;color:var(--muted);word-break:break-all;text-align:center;background:var(--warm);padding:8px 10px;border-radius:8px;}
+.bar-pick{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);cursor:pointer;}
+.bar-pick:last-child{border-bottom:none;}
+.bar-pick-box{width:20px;height:20px;border:2px solid var(--border);border-radius:5px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:.75rem;color:#fff;}
+.bar-pick-box.on{background:var(--sage);border-color:var(--sage);}
+.order-row{display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--warm);border-radius:8px;margin-bottom:7px;}
+.order-row.made{opacity:.45;}
+.order-who{font-weight:600;font-size:.85rem;color:var(--ink);}
+.order-what{font-size:.8rem;color:var(--muted);}
+.guest-page{max-width:520px;margin:0 auto;padding:22px 16px 60px;}
+.guest-head{text-align:center;margin-bottom:22px;}
+.guest-title{font-family:'Cormorant Garamond',serif;font-size:2rem;color:var(--ink);}
+.guest-sub{font-size:.8rem;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-top:3px;}
+.guest-item{background:#fff;border:1px solid var(--border);border-radius:12px;padding:15px;margin-bottom:11px;}
+.guest-item-title{font-family:'Cormorant Garamond',serif;font-size:1.28rem;color:var(--ink);}
+.guest-item-desc{font-size:.8rem;color:var(--muted);line-height:1.5;margin-top:3px;}
+.guest-toast{position:fixed;left:50%;transform:translateX(-50%);bottom:24px;background:var(--nav);color:#f7f3ee;padding:11px 20px;border-radius:22px;font-size:.85rem;z-index:200;box-shadow:0 4px 16px rgba(0,0,0,.25);}
+.mine-chip{display:inline-flex;align-items:center;gap:5px;background:var(--warm);border-radius:14px;padding:4px 11px;font-size:.75rem;margin:0 6px 6px 0;color:var(--ink);}
 </style>
 </head>
 <body>
 <div id="root"></div>
 <script type="text/babel">
-const { useState, useEffect, useCallback } = React;
+const { useState, useEffect, useCallback, useRef } = React;
 
 // Firebase
 const firebaseConfig = {
@@ -277,6 +302,39 @@ const firebaseConfig = {
 };
 if (!window.firebase.apps.length) window.firebase.initializeApp(firebaseConfig);
 const db = window.firebase.database();
+
+// ─── AI model resolution (survives model retirements) ────────────────────────
+const AI_URL = "https://lucky-bonus-4a7a.christopher-a-daggett.workers.dev";
+const DEFAULT_MODELS = ["claude-sonnet-5","claude-haiku-4-5-20251001","claude-sonnet-4-5","claude-sonnet-4-20250514"];
+let MODEL_CHAIN = DEFAULT_MODELS.slice();
+let AI_MODEL = MODEL_CHAIN[0];
+
+async function resolveModel() {
+  var cached = null;
+  try { cached = JSON.parse(localStorage.getItem("ok_ai_model") || "null"); } catch(e) {}
+  var now = Date.now();
+  if (cached && cached.model && (now - cached.ts) < 604800000) { AI_MODEL = cached.model; return; }
+  for (var i = 0; i < MODEL_CHAIN.length; i++) {
+    var m = MODEL_CHAIN[i];
+    try {
+      var res = await fetch(AI_URL, { method:"POST", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({ model:m, max_tokens:1, messages:[{role:"user",content:"hi"}] }) });
+      var txt = await res.text();
+      if (res.ok && txt.indexOf("not_found_error") < 0) {
+        AI_MODEL = m;
+        try { localStorage.setItem("ok_ai_model", JSON.stringify({model:m, ts:now})); } catch(e) {}
+        return;
+      }
+    } catch(e) {}
+  }
+}
+resolveModel();
+db.ref("config/model").on("value", function(snap){
+  if (snap.exists() && snap.val()) {
+    AI_MODEL = snap.val();
+    try { localStorage.setItem("ok_ai_model", JSON.stringify({model:AI_MODEL, ts:Date.now()})); } catch(e) {}
+  }
+});
 
 // Constants
 const FAMILY = ["Chris","Sarah","Nora","Elizabeth","Luke"];
@@ -336,6 +394,9 @@ const SAMPLE_RECIPES = [
   { id:"r29", isSample:false, type:"food", title:"Steak Tips", category:"everyday", description:"The family favorite - steak tips marinated in Doms marinade for 4+ hours then grilled. Five stars across the board.", time:30, ease:1, ingredients:["2 lbs steak tips","Doms marinade"], steps:["Coat steak tips generously in Doms marinade.","Marinate for at least 4 hours - overnight is even better.","Grill over high heat to desired doneness.","Rest a few minutes before serving."], tags:["steak","grilling","family favorite","red meat"], ratings:{Chris:5,Sarah:5,Nora:5,Elizabeth:5,Luke:5}, cookHistory:[], pairings:[], notes:"A household staple. The longer the marinade the better.", photo:null, source:"" },
   { id:"r30", isSample:false, type:"food", title:"Baked Lemon Salmon", category:"healthy", description:"Simple, clean baked salmon with lemon and garlic. Ready in 20 minutes.", time:25, ease:1, ingredients:["3 salmon filets","1/2 lemon, juiced","garlic powder","pinch of salt","3 lemon slices"], steps:["Preheat oven to 400 degrees F.","Place salmon filets in a baking dish.","Squeeze half a lemon over the filets.","Dust each filet lightly with garlic powder and a pinch of salt.","Place a lemon slice on top of each filet.","Bake for 20 minutes."], tags:["salmon","fish","healthy","quick","lemon"], ratings:{}, cookHistory:[], pairings:["r5"], notes:"", photo:null, source:"" },
   { id:"r32", isSample:false, type:"food", title:"Pan Seared Salmon with Mediterranean Salsa Fresca", category:"healthy", description:"Juicy spice-marinated salmon seared in cast iron, topped with a cool Mediterranean salsa fresca of tomatoes, cucumber, olives and fresh herbs. Served with toasted garlic couscous.", time:35, ease:2, ingredients:["FOR THE SALMON:","4 salmon fillets (6 oz each), skinned","olive or avocado oil","1 tsp paprika","1 tsp granulated garlic","1/2 tsp granulated onion","1/2 tsp ground cumin","1/2 tsp ground coriander","1/4 tsp salt","1/4 tsp black pepper","pinch cayenne pepper","1 tsp grated lemon zest","FOR THE MEDITERRANEAN SALSA FRESCA:","1 cup small cherry tomatoes, quartered","1 small Persian cucumber, finely diced","1/4 yellow bell pepper, finely diced","2 tbsp pitted Kalamata olives, diced","2 tbsp finely diced red onion","1 tsp chopped fresh dill","1 tsp chopped flat-leaf parsley","1/2 tsp grated lemon zest","1 tsp lemon juice","salt and black pepper to taste","FOR THE TOASTED COUSCOUS:","1 cup couscous","1 1/4 cup water","couple pinches of salt","1 tbsp olive oil","1 clove garlic, pressed","1 tbsp chopped parsley"], steps:["Drizzle salmon fillets with 2 tbsp oil. Sprinkle with paprika, granulated garlic, granulated onion, cumin, coriander, salt, pepper, cayenne and lemon zest. Toss gently to coat. Marinate at least 20 minutes or overnight.","Make the salsa fresca: combine tomatoes, cucumber, bell pepper, olives, red onion, dill, parsley, lemon zest and lemon juice. Season with salt and pepper. Cover and refrigerate until ready to serve.","Make the toasted couscous: place couscous in a dry medium saucepan over medium heat. Toast stirring frequently for about 1 minute. Pour out and set aside.","In the same pot add water, salt, olive oil and garlic. Bring to a vigorous simmer. Pour in couscous, stir, and turn off heat. Cover and let soften 5-7 minutes. Fluff with fork and stir in parsley. Keep warm.","Heat a large cast-iron skillet over medium-high heat with 2-3 tbsp oil. Once very hot, add salmon fillets. Sear 4-5 minutes until deep golden-brown. Flip and sear other side 4-5 more minutes.","Top salmon generously with salsa fresca and serve alongside toasted couscous."], tags:["salmon","fish","healthy","mediterranean","cast iron"], ratings:{}, cookHistory:[], pairings:[], notes:"Marinating longer (up to overnight) builds much more flavor. Medium-high heat is key - not too hot or the outside chars before the inside cooks through. Couscous is optional but ties the plate together.", photo:null, source:"https://thecozyapron.com/pan-seared-salmon/" },
+  { id:"r33", isSample:false, type:"food", title:"Greek Marinated Grilled Chicken", category:"everyday", description:"A classic Greek marinade with olive oil, garlic, oregano, lemon and herbs. Simple, bright and perfect for the grill.", time:30, ease:1, ingredients:["olive oil","minced garlic","dried oregano (primary herb - others optional)","rosemary","parsley","lemon juice","splash of red wine vinegar (optional)","salt, 1/2 to 3/4 tsp per lb of meat","black pepper"], steps:["Combine olive oil, minced garlic, oregano, rosemary, parsley, lemon juice, red wine vinegar if using, salt and pepper in a bowl or zip-lock bag.","Add chicken and coat well. Marinate at least 1-2 hours, overnight for best results.","Grill over medium-high heat until cooked through, turning once."], tags:["chicken","greek","grilling","marinade","mediterranean"], ratings:{Chris:5,Sarah:5}, cookHistory:[], pairings:[], notes:"Oregano is the key herb - rosemary and parsley are optional. Salt at 1/2 to 3/4 tsp per lb is the right ratio. Red wine vinegar adds brightness but is optional.", photo:null, source:"" },
+  { id:"r34", isSample:false, type:"cocktail", title:"Ancho Old Fashioned", category:"treat", description:"A chile-warmed twist on the classic. Ancho Reyes replaces most of the sugar, sitting under the whiskey instead of on top of it. Smoky, oaky, slow heat on the back end.", time:5, ease:1, ingredients:["2 oz bourbon (or rye for more spice)","1/2 oz Ancho Reyes Chile Liqueur","2 dashes Angostura bitters","2 dashes chocolate bitters","1 orange peel, for garnish"], steps:["Add bourbon, Ancho Reyes, Angostura bitters and chocolate bitters to a mixing glass filled with ice.","Stir until well chilled and properly diluted, about 30 seconds.","Strain over one large ice cube in a rocks glass.","Express the orange peel over the top to release the oils, then drop it in."], tags:["cocktail","bourbon","rye","old fashioned","spicy","stirred"], ratings:{}, cookHistory:[], pairings:["r23"], notes:"Rye pushes the spice; bourbon keeps it rounder and sweeter. Start at 1/2 oz Ancho Reyes and go up to 3/4 oz if you want more heat. A rye version is a great steak-night sipper.", photo:null, source:"" },
+  { id:"r35", isSample:false, type:"food", title:"Asian Soba Noodle Salad with Soy Dressing", category:"healthy", description:"Cold buckwheat soba tossed with crunchy raw vegetables and a bold soy-citrus dressing with lime, orange and sriracha. Ready in 30 minutes.", time:30, ease:1, ingredients:["FOR THE SALAD:","6 oz soba noodles","1 cup carrots, shredded","1 cup edamame beans, shelled and cooked","1 cup red bell pepper, thinly sliced","1 cup English cucumber, seeds removed and thinly sliced","1/2 cup sugar snap peas, cut in half diagonally","1/2 cup red cabbage, thinly sliced","1/4 cup green onions, thinly sliced on a bias","2 tsp sesame seeds, toasted","1/3 cup fresh cilantro","black pepper, as needed","FOR THE SOY DRESSING:","2 tbsp soy sauce","2 tbsp rice wine vinegar","1/4 cup orange juice","1 tbsp lime juice","zest of 1 lime","1/2 tsp sugar","1 1/2 tsp sriracha, or to taste","1 clove garlic, minced","1 tbsp sesame oil","3 tbsp grapeseed oil (or olive oil)"], steps:["Bring a large pot of water to a boil. Cook the soba noodles according to package instructions, about 4 minutes.","Drain and transfer noodles immediately into an ice bath to stop the cooking. Drain again and lightly dry on paper towels.","In a large bowl, combine the soba noodles with all of the cut vegetables and set aside.","In a medium bowl, whisk together all of the dressing ingredients EXCEPT the sesame oil and grapeseed oil.","Gradually add the sesame oil and whisk to combine, then slowly add the grapeseed oil and whisk until emulsified.","Pour the dressing over the salad, add sesame seeds and cilantro, and toss to combine."], tags:["noodles","salad","japanese","healthy","make ahead","vegetarian"], ratings:{}, cookHistory:[], pairings:["r30"], notes:"Makes about 3 servings. Great as a side with salmon, or add grilled chicken, shrimp or tofu to make it an entree. Leftovers are excellent - the noodles soak up the dressing overnight. Check the label for gluten-free soba if needed.", photo:null, source:"https://www.jessicagavin.com/asian-soba-noodle-salad-with-soy-dressing/" },
 ];
 
 // ─── Main App ─────────────────────────────────────────────────────────────────
@@ -427,9 +488,9 @@ function App() {
             {syncStatus==="connecting"?"⏳":syncStatus==="synced"?"🟢":"🔴"}
           </span>
         </div>
-        {["food","cocktails","planner","suggest","export"].map(t=>(
+        {["food","cocktails","planner","suggest","bar","export"].map(t=>(
           <button key={t} className={`tab-btn${tab===t?" active":""}`} onClick={()=>setTab(t)}>
-            {t==="food"?"📖 Recipes":t==="cocktails"?"🍸 Cocktails":t==="planner"?"🗓 Planner":t==="suggest"?"✨ Suggest":"📤 Export"}
+            {t==="food"?"📖 Recipes":t==="cocktails"?"🍸 Cocktails":t==="planner"?"🗓 Planner":t==="suggest"?"✨ Suggest":t==="bar"?"🍹 Bar":"📤 Export"}
           </button>
         ))}
       </header>
@@ -519,6 +580,7 @@ function App() {
           />
         )}
         {tab==="suggest" && <AISuggest recipes={recipes} prefs={prefs} onSaveRecipe={saveRecipe} />}
+        {tab==="bar" && <BarTab recipes={recipes} />}
         {tab==="export" && <ExportPanel recipes={recipes} setRecipes={(d)=>db.ref("recipes").set(d)} trustedSources={trustedSources} setTrustedSources={(fn)=>{const next=typeof fn==="function"?fn(trustedSources):fn;db.ref("trustedSources").set(next);}} />}
       </main>
       {detail&&<RecipeDetail recipe={detail} allRecipes={recipes} trustedSources={trustedSources} onClose={()=>setDetail(null)} onSave={(r)=>{saveRecipe(r);setDetail(r);}} onEdit={(r)=>{setEditRecipe(r);}} onDelete={(id)=>{deleteRecipe(id);setDetail(null);}} />}
@@ -530,6 +592,77 @@ function App() {
   );
 }
 
+
+// ─── Planner column + notes (top level so the DOM is never torn down) ───────
+function SlotNotes({ value, onCommit }) {
+  const [text, setText] = useState(value || "");
+  const focused = useRef(false);
+  const timer = useRef(null);
+  const box = useRef(null);
+
+  useEffect(() => { if (!focused.current) setText(value || ""); }, [value]);
+
+  const grow = () => {
+    const el = box.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = Math.max(28, el.scrollHeight) + "px";
+  };
+  useEffect(grow, [text]);
+
+  const schedule = (v) => {
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(() => onCommit(v), 900);
+  };
+
+  return (
+    <textarea ref={box} className="planner-notes" rows={1} placeholder="notes, extras needed…"
+      value={text}
+      onFocus={()=>{ focused.current = true; }}
+      onChange={e=>{ setText(e.target.value); schedule(e.target.value); }}
+      onBlur={e=>{
+        focused.current = false;
+        if (timer.current) clearTimeout(timer.current);
+        onCommit(e.target.value);
+      }}
+    />
+  );
+}
+
+function PlannerColumn({ slotKey, label, isCustom, mealPlan, removeFromDay, setPickerDay, setModal, updateMealPlan, renameCustomSlot, removeCustomSlot }) {
+  const raw = mealPlan[slotKey];
+  const items = Array.isArray(raw) ? raw : Object.values(raw || {});
+  return (
+    <div className="planner-col">
+      <div className={isCustom?"custom-slot-header":"planner-day"}>
+        {isCustom ? (
+          <><input className="custom-slot-name" defaultValue={label}
+            onBlur={e=>renameCustomSlot(label, e.target.value)}
+            onKeyDown={e=>{if(e.key==="Enter")e.target.blur();}}
+          />
+          <button onClick={()=>removeCustomSlot(label)} style={{background:"none",border:"none",color:"rgba(255,255,255,.7)",cursor:"pointer",fontSize:".85rem",padding:"0 0 0 4px"}}>✕</button></>
+        ) : label}
+      </div>
+      <div className="planner-slots">
+        {items.map((item,i)=>item&&(
+          <div key={i} className="planner-chip">
+            <span className="planner-chip-text">{item.title}</span>
+            <button className="chip-x" onClick={()=>removeFromDay(slotKey,i)}>✕</button>
+          </div>
+        ))}
+        <button className="planner-add" onClick={()=>{setPickerDay(slotKey);setModal("pick");}}>+ add</button>
+        <SlotNotes
+          value={mealPlan["__notes__"+slotKey] || ""}
+          onCommit={(v)=>{
+            const cur = mealPlan["__notes__"+slotKey] || "";
+            if (v === cur) return;
+            updateMealPlan(p=>Object.assign({}, p, {["__notes__"+slotKey]: v}));
+          }}
+        />
+      </div>
+    </div>
+  );
+}
 
 // ─── Planner Tab ──────────────────────────────────────────────────────────────
 function PlannerTab({ mealPlan, recipes, addToDay, removeFromDay, pickerDay, setPickerDay, modal, setModal, updateMealPlan, prefs, saveGrocery, loadGrocery }) {
@@ -642,7 +775,7 @@ function PlannerTab({ mealPlan, recipes, addToDay, removeFromDay, pickerDay, set
       const res = await fetch("https://lucky-bonus-4a7a.christopher-a-daggett.workers.dev", {
         method:"POST", headers:{"Content-Type":"application/json"},
         body: JSON.stringify({
-          model:"claude-sonnet-4-20250514", max_tokens:2000,
+          model:AI_MODEL, max_tokens:2000,
           system:"You are a helpful grocery list organizer. Consolidate and deduplicate ingredients from multiple recipes. Group into: Produce, Meat & Seafood, Dairy & Eggs, Pantry & Dry Goods, Condiments & Sauces, Spices & Herbs, Bread & Bakery, Beverages, Other. Return ONLY valid JSON with a categories array. No markdown.",
           messages:[{role:"user", content:"Recipes and ingredients:\n" + fullList}]
         })
@@ -682,29 +815,10 @@ function PlannerTab({ mealPlan, recipes, addToDay, removeFromDay, pickerDay, set
   };
 
 
-  const PlanCol = ({slotKey, label, isCustom}) => (
-    <div className="planner-col">
-      <div className={isCustom?"custom-slot-header":"planner-day"} style={isCustom?{}:{}}>
-        {isCustom ? (
-          <><input className="custom-slot-name" defaultValue={label}
-            onBlur={e=>renameCustomSlot(label, e.target.value)}
-            onKeyDown={e=>{if(e.key==="Enter")e.target.blur();}}
-          />
-          <button onClick={()=>removeCustomSlot(label)} style={{background:"none",border:"none",color:"rgba(255,255,255,.7)",cursor:"pointer",fontSize:".85rem",padding:"0 0 0 4px"}}>✕</button></>
-        ) : label}
-      </div>
-      <div className="planner-slots">
-        {(Array.isArray(mealPlan[slotKey])?mealPlan[slotKey]:Object.values(mealPlan[slotKey]||{})).map((item,i)=>item&&(
-          <div key={i} className="planner-chip">
-            <span className="planner-chip-text">{item.title}</span>
-            <button className="chip-x" onClick={()=>removeFromDay(slotKey,i)}>✕</button>
-          </div>
-        ))}
-        <button className="planner-add" onClick={()=>{setPickerDay(slotKey);setModal("pick");}}>+ add</button>
-        <textarea className="planner-notes" rows={1} placeholder="notes, extras needed…" value={mealPlan["__notes__"+slotKey]||""} onChange={e=>updateMealPlan(p=>({...p,["__notes__"+slotKey]:e.target.value}))} />
-      </div>
-    </div>
-  );
+  const PlanCol = (props) => <PlannerColumn {...props}
+    mealPlan={mealPlan} removeFromDay={removeFromDay} setPickerDay={setPickerDay}
+    setModal={setModal} updateMealPlan={updateMealPlan}
+    renameCustomSlot={renameCustomSlot} removeCustomSlot={removeCustomSlot} />;
 
   return (
     <>
@@ -1110,6 +1224,11 @@ function RecipeForm({ type, onClose, onSave, initial, isEdit }) {
           <div className="section-label">Details</div>
           <div className="form-row form-row-2" style={{marginBottom:12}}>
             <div className="field"><label>Title *</label><input className="finput" value={f.title} onChange={e=>set("title",e.target.value)} placeholder="Recipe name" /></div>
+            <div className="field"><label>Type</label>
+              <select className="fselect" value={f.type||"food"} onChange={e=>set("type",e.target.value)}>
+                <option value="food">Food</option><option value="cocktail">Cocktail</option>
+              </select>
+            </div>
             <div className="field"><label>Category</label>
               <select className="fselect" value={f.category} onChange={e=>set("category",e.target.value)}>
                 {CATEGORIES.map(c=><option key={c} value={c}>{CAT_LABELS[c]}</option>)}
@@ -1157,9 +1276,9 @@ function ImportModal({ onClose, onSave }) {
       method:"POST",
       headers:{"Content-Type":"application/json"},
       body:JSON.stringify({
-        model:"claude-sonnet-4-20250514",
+        model:AI_MODEL,
         max_tokens:1500,
-        system:"You are a recipe extractor. The user will give you a URL or text. Use your training knowledge to extract or reconstruct the recipe. Return ONLY a valid JSON object with NO other text, NO markdown, NO explanation. Use these exact keys: title (string), description (string), ingredients (array of strings), steps (array of strings), time (number in minutes), ease (1=easy 2=medium 3=hard), category (everyday or healthy or treat or holiday), tags (array of strings), notes (string). If given a URL you cannot access, use your knowledge of that recipe site and URL to infer the recipe.",
+        system:"You are a recipe extractor. The user will give you a URL or text. Extract the COMPLETE recipe including every component - any dressing, sauce, salsa, marinade, side or topping that belongs to the dish. Do not omit these even when they sit in a separate section of the page. Group the ingredients with clear labelled headers as their own array entries, for example FOR THE SALAD: then its ingredients, then FOR THE DRESSING: then its ingredients. The steps must cover the whole dish end to end. Return ONLY a valid JSON object with NO other text, NO markdown, NO explanation. Use these exact keys: type (either food or cocktail - use cocktail for any alcoholic mixed drink), title (string), description (string), ingredients (array of strings), steps (array of strings), time (number in minutes), ease (1=easy 2=medium 3=hard), category (everyday or healthy or treat or holiday), tags (array of strings), notes (string). If given a URL you cannot access, use your knowledge of that recipe site and URL to infer the complete recipe.",
         messages:[{role:"user",content:prompt}]
       })
     });
@@ -1186,6 +1305,7 @@ function ImportModal({ onClose, onSave }) {
     return { id:genId(), type:"food", photo:null, ratings:{}, cookHistory:[], pairings:[], isSample:false,
       source: sourceUrl,
       ...parsed,
+      type: parsed.type==="cocktail" ? "cocktail" : "food",
       ingredients: Array.isArray(parsed.ingredients)?parsed.ingredients:parsed.ingredients?.split("\n")||[],
       steps: Array.isArray(parsed.steps)?parsed.steps:parsed.steps?.split("\n")||[],
       tags: Array.isArray(parsed.tags)?parsed.tags:[],
@@ -1363,7 +1483,7 @@ function AISuggest({ recipes, prefs, onSaveRecipe }) {
         method:"POST",
         headers:{"Content-Type":"application/json"},
         body:JSON.stringify({
-          model:"claude-sonnet-4-20250514",
+          model:AI_MODEL,
           max_tokens:1500,
           system:`You are a warm, creative home cooking assistant for a family. Their existing recipes include: ${context}. Family food preferences — they LOVE: ${likesStr}. They AVOID or dislike: ${dislikesStr}. Never suggest recipes that feature the avoided items. Suggest 2-3 recipe ideas. Return ONLY valid JSON array, no markdown: [{"title":"...","description":"...","category":"everyday","time":30,"ease":1,"ingredients":["..."],"steps":["..."],"tags":["..."],"notes":"..."}]. ease: 1=easy,2=medium,3=hard. category: everyday/healthy/treat/holiday.`,
           messages:[{role:"user",content:prompt}]
@@ -1471,7 +1591,7 @@ function AIMealModal({ recipes, mealPlan, prefs, onClose }) {
           method:"POST",
           headers:{"Content-Type":"application/json"},
           body:JSON.stringify({
-            model:"claude-sonnet-4-20250514",
+            model:AI_MODEL,
             max_tokens:1200,
             system:`You are a helpful family meal planner. Today is Saturday — planning day. Family food preferences — they LOVE: ${likesStr}. They AVOID: ${dislikesStr}. Never suggest meals featuring avoided items. Lean into what they love. Suggest a balanced week of meals (Mon-Fri dinners, plus Sat/Sun). Consider: variety, kid-friendliness, ingredient overlap to minimize shopping, health balance, and time constraints on weeknights. Be specific and friendly.`,
             messages:[{role:"user",content:`Here are our recipes:\n${recipeList}\n\nCurrently planned:\n${planned}\n\nPlease suggest a meal plan for the week with brief reasoning for each pick.`}]
@@ -1601,7 +1721,261 @@ function ExportPanel({ recipes, setRecipes, trustedSources, setTrustedSources })
   );
 }
 
-ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+
+// ─── Bar: host-side cocktail menu + live order queue ─────────────────────────
+function BarTab({ recipes }) {
+  const [session, setSession] = useState(null);
+  const [orders, setOrders] = useState([]);
+  const [nightName, setNightName] = useState("");
+  const [picked, setPicked] = useState([]);
+  const [showMade, setShowMade] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const qrRef = useRef(null);
+  const cocktails = recipes.filter(r=>r.type==="cocktail");
+
+  useEffect(()=>{
+    const sRef = db.ref("bar/session");
+    const oRef = db.ref("bar/orders");
+    sRef.on("value", snap => setSession(snap.exists() ? snap.val() : null));
+    oRef.on("value", snap => {
+      const v = snap.exists() ? snap.val() : {};
+      const arr = Object.keys(v).map(k => Object.assign({key:k}, v[k]));
+      arr.sort((a,b)=>(a.ts||0)-(b.ts||0));
+      setOrders(arr);
+    });
+    return ()=>{ sRef.off(); oRef.off(); };
+  },[]);
+
+  const guestUrl = session ? (window.location.origin + window.location.pathname + "?bar=" + session.id) : "";
+
+  useEffect(()=>{
+    if (!session || !qrRef.current) return;
+    qrRef.current.innerHTML = "";
+    if (typeof QRCode === "undefined") return;
+    try { new QRCode(qrRef.current, { text: guestUrl, width: 190, height: 190, colorDark: "#1c1410", colorLight: "#ffffff" }); } catch(e) {}
+  }, [session ? session.id : null]);
+
+  const toggle = (id) => setPicked(p => p.indexOf(id) >= 0 ? p.filter(x=>x!==id) : [...p, id]);
+
+  const startNight = () => {
+    if (picked.length === 0) return;
+    const id = Math.random().toString(36).slice(2,8);
+    db.ref("bar/session").set({ id, name: nightName.trim() || "Cocktail Night", cocktailIds: picked, createdAt: Date.now() });
+    db.ref("bar/orders").remove();
+  };
+  const endNight = () => {
+    if (!window.confirm("End the night? This clears the menu and all orders.")) return;
+    db.ref("bar/session").remove(); db.ref("bar/orders").remove();
+    setPicked([]); setNightName("");
+  };
+  const setStatus = (key, status) => db.ref("bar/orders/" + key).update({ status });
+  const clearMade = () => {
+    orders.filter(o=>o.status==="made").forEach(o => db.ref("bar/orders/" + o.key).remove());
+  };
+  const copyLink = () => {
+    navigator.clipboard.writeText(guestUrl).then(()=>{ setCopied(true); setTimeout(()=>setCopied(false),1800); }).catch(()=>{});
+  };
+
+  const pending = orders.filter(o=>o.status!=="made");
+  const made = orders.filter(o=>o.status==="made");
+
+  if (!session) {
+    return (
+      <div className="bar-wrap">
+        <div className="sec-head"><h1 className="sec-title">Cocktail Night</h1></div>
+        {cocktails.length === 0 ? (
+          <p style={{color:"var(--muted)",fontSize:".9rem"}}>Add some cocktails first and they will show up here.</p>
+        ) : (
+          <div className="bar-card">
+            <div className="field" style={{marginBottom:14}}>
+              <label>Name the night</label>
+              <input className="finput" value={nightName} onChange={e=>setNightName(e.target.value)} placeholder="e.g. Poker Night" />
+            </div>
+            <div className="section-label" style={{marginTop:0}}>Pick what is on the menu</div>
+            {cocktails.map(c=>(
+              <div key={c.id} className="bar-pick" onClick={()=>toggle(c.id)}>
+                <div className={"bar-pick-box" + (picked.indexOf(c.id)>=0 ? " on" : "")}>{picked.indexOf(c.id)>=0 && "\u2713"}</div>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:".9rem",color:"var(--ink)"}}>{c.title}</div>
+                  <div style={{fontSize:".75rem",color:"var(--muted)"}}>{c.description}</div>
+                </div>
+              </div>
+            ))}
+            <button className="btn btn-primary" style={{marginTop:16,width:"100%",justifyContent:"center"}}
+              onClick={startNight} disabled={picked.length===0}>
+              Open the bar ({picked.length} selected)
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="bar-wrap">
+      <div className="sec-head">
+        <h1 className="sec-title">{session.name}</h1>
+        <button className="btn btn-ghost btn-sm" style={{color:"var(--terra)"}} onClick={endNight}>End night</button>
+      </div>
+
+      <div className="bar-card">
+        <div className="bar-qr">
+          <div ref={qrRef}></div>
+          <div className="bar-link">{guestUrl}</div>
+          <button className="btn btn-ghost btn-sm" onClick={copyLink}>{copied ? "\u2713 Copied" : "Copy link to text out"}</button>
+        </div>
+      </div>
+
+      <div className="bar-card">
+        <div className="section-label" style={{marginTop:0}}>Orders {pending.length > 0 && "(" + pending.length + " waiting)"}</div>
+        {pending.length === 0 && <p style={{color:"var(--muted)",fontSize:".85rem"}}>No orders yet. Pass out the QR code.</p>}
+        {pending.map(o=>(
+          <div key={o.key} className="order-row">
+            <div style={{flex:1}}>
+              <div className="order-who">{o.name}</div>
+              <div className="order-what">{o.title}</div>
+            </div>
+            <button className="btn btn-primary btn-sm" onClick={()=>setStatus(o.key,"made")}>Made</button>
+          </div>
+        ))}
+        {made.length > 0 && (
+          <div style={{marginTop:14}}>
+            <button className="btn btn-ghost btn-sm" onClick={()=>setShowMade(!showMade)}>
+              {showMade ? "Hide" : "Show"} {made.length} completed
+            </button>
+            {showMade && (
+              <div style={{marginTop:10}}>
+                {made.map(o=>(
+                  <div key={o.key} className="order-row made">
+                    <div style={{flex:1}}>
+                      <div className="order-who">{o.name}</div>
+                      <div className="order-what">{o.title}</div>
+                    </div>
+                    <button className="btn btn-ghost btn-sm" onClick={()=>setStatus(o.key,"pending")}>Undo</button>
+                  </div>
+                ))}
+                <button className="btn btn-ghost btn-sm" style={{color:"var(--terra)",marginTop:6}} onClick={clearMade}>Clear completed</button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Guest-facing menu (opened via ?bar=SESSIONID) ───────────────────────────
+function GuestMenu({ barId }) {
+  const [session, setSession] = useState(undefined);
+  const [allRecipes, setAllRecipes] = useState([]);
+  const [name, setName] = useState("");
+  const [nameSet, setNameSet] = useState(false);
+  const [orders, setOrders] = useState([]);
+  const [toast, setToast] = useState("");
+
+  useEffect(()=>{
+    try {
+      const saved = localStorage.getItem("ok_bar_name");
+      if (saved) { setName(saved); setNameSet(true); }
+    } catch(e) {}
+    const sRef = db.ref("bar/session");
+    const rRef = db.ref("recipes");
+    const oRef = db.ref("bar/orders");
+    sRef.on("value", snap => setSession(snap.exists() ? snap.val() : null));
+    rRef.on("value", snap => { if (snap.exists()) setAllRecipes(snap.val()); });
+    oRef.on("value", snap => {
+      const v = snap.exists() ? snap.val() : {};
+      const arr = Object.keys(v).map(k => Object.assign({key:k}, v[k]));
+      arr.sort((a,b)=>(a.ts||0)-(b.ts||0));
+      setOrders(arr);
+    });
+    return ()=>{ sRef.off(); rRef.off(); oRef.off(); };
+  },[]);
+
+  const saveName = () => {
+    if (!name.trim()) return;
+    try { localStorage.setItem("ok_bar_name", name.trim()); } catch(e) {}
+    setNameSet(true);
+  };
+
+  const order = (c) => {
+    db.ref("bar/orders").push({ name: name.trim(), recipeId: c.id, title: c.title, ts: Date.now(), status: "pending" });
+    setToast(c.title + " ordered");
+    setTimeout(()=>setToast(""), 2200);
+  };
+
+  if (session === undefined) return <div className="guest-page"><p style={{color:"var(--muted)",textAlign:"center"}}>Loading the menu…</p></div>;
+  if (!session || session.id !== barId) {
+    return (
+      <div className="guest-page">
+        <div className="guest-head">
+          <div className="guest-title">Bar is closed</div>
+          <div className="guest-sub">no menu running right now</div>
+        </div>
+      </div>
+    );
+  }
+
+  const menu = (session.cocktailIds||[]).map(id => allRecipes.find(r=>r.id===id)).filter(Boolean);
+  const mine = orders.filter(o => o.name === name.trim());
+
+  if (!nameSet) {
+    return (
+      <div className="guest-page">
+        <div className="guest-head">
+          <div className="guest-title">{session.name}</div>
+          <div className="guest-sub">what should we call you?</div>
+        </div>
+        <div className="guest-item">
+          <input className="finput" value={name} onChange={e=>setName(e.target.value)}
+            onKeyDown={e=>{ if(e.key==="Enter") saveName(); }} placeholder="Your name" autoFocus />
+          <button className="btn btn-primary" style={{marginTop:12,width:"100%",justifyContent:"center"}}
+            onClick={saveName} disabled={!name.trim()}>See the menu</button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="guest-page">
+      <div className="guest-head">
+        <div className="guest-title">{session.name}</div>
+        <div className="guest-sub">ordering as {name}</div>
+      </div>
+
+      {mine.length > 0 && (
+        <div style={{marginBottom:18}}>
+          <div className="section-label" style={{marginTop:0}}>Your orders</div>
+          {mine.map(o=>(
+            <span key={o.key} className="mine-chip">
+              {o.status==="made" ? "\u2713" : "\u23F3"} {o.title}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {menu.length === 0 && <p style={{color:"var(--muted)",fontSize:".85rem"}}>Nothing on the menu yet.</p>}
+      {menu.map(c=>(
+        <div key={c.id} className="guest-item">
+          <div className="guest-item-title">{c.title}</div>
+          {c.description && <div className="guest-item-desc">{c.description}</div>}
+          <button className="btn btn-primary btn-sm" style={{marginTop:11,width:"100%",justifyContent:"center"}}
+            onClick={()=>order(c)}>Order this</button>
+        </div>
+      ))}
+
+      <button className="btn btn-ghost btn-sm" style={{marginTop:18,fontSize:".72rem"}}
+        onClick={()=>{ try{localStorage.removeItem("ok_bar_name");}catch(e){} setNameSet(false); }}>
+        not {name}?
+      </button>
+
+      {toast && <div className="guest-toast">{toast}</div>}
+    </div>
+  );
+}
+
+const BAR_ID = new URLSearchParams(window.location.search).get("bar");
+ReactDOM.createRoot(document.getElementById('root')).render(BAR_ID ? <GuestMenu barId={BAR_ID} /> : <App />);
 </script>
 
 <script>
