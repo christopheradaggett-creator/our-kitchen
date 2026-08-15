@@ -304,7 +304,7 @@ if (!window.firebase.apps.length) window.firebase.initializeApp(firebaseConfig);
 const db = window.firebase.database();
 
 // ─── AI model resolution (survives model retirements) ────────────────────────
-const BUILD = "b14";
+const BUILD = "b15";
 const AI_URL = "https://lucky-bonus-4a7a.christopher-a-daggett.workers.dev";
 
 // Firebase hands back an object (not an array) whenever an array has gaps.
@@ -428,6 +428,7 @@ const SAMPLE_RECIPES = [
   { id:"r33", isSample:false, type:"food", title:"Greek Marinated Grilled Chicken", category:"everyday", description:"A classic Greek marinade with olive oil, garlic, oregano, lemon and herbs. Simple, bright and perfect for the grill.", time:30, ease:1, ingredients:["olive oil","minced garlic","dried oregano (primary herb - others optional)","rosemary","parsley","lemon juice","splash of red wine vinegar (optional)","salt, 1/2 to 3/4 tsp per lb of meat","black pepper"], steps:["Combine olive oil, minced garlic, oregano, rosemary, parsley, lemon juice, red wine vinegar if using, salt and pepper in a bowl or zip-lock bag.","Add chicken and coat well. Marinate at least 1-2 hours, overnight for best results.","Grill over medium-high heat until cooked through, turning once."], tags:["chicken","greek","grilling","marinade","mediterranean"], ratings:{Chris:5,Sarah:5}, cookHistory:[], pairings:[], notes:"Oregano is the key herb - rosemary and parsley are optional. Salt at 1/2 to 3/4 tsp per lb is the right ratio. Red wine vinegar adds brightness but is optional.", photo:null, source:"" },
   { id:"r34", isSample:false, type:"cocktail", title:"Ancho Old Fashioned", category:"treat", description:"A chile-warmed twist on the classic. Ancho Reyes replaces most of the sugar, sitting under the whiskey instead of on top of it. Smoky, oaky, slow heat on the back end.", time:5, ease:1, ingredients:["2 oz bourbon (or rye for more spice)","1/2 oz Ancho Reyes Chile Liqueur","2 dashes Angostura bitters","2 dashes chocolate bitters","1 orange peel, for garnish"], steps:["Add bourbon, Ancho Reyes, Angostura bitters and chocolate bitters to a mixing glass filled with ice.","Stir until well chilled and properly diluted, about 30 seconds.","Strain over one large ice cube in a rocks glass.","Express the orange peel over the top to release the oils, then drop it in."], tags:["cocktail","bourbon","rye","old fashioned","spicy","stirred"], ratings:{}, cookHistory:[], pairings:["r23"], notes:"Rye pushes the spice; bourbon keeps it rounder and sweeter. Start at 1/2 oz Ancho Reyes and go up to 3/4 oz if you want more heat. A rye version is a great steak-night sipper.", photo:null, source:"" },
   { id:"r35", isSample:false, type:"food", title:"Asian Soba Noodle Salad with Soy Dressing", category:"healthy", description:"Cold buckwheat soba tossed with crunchy raw vegetables and a bold soy-citrus dressing with lime, orange and sriracha. Ready in 30 minutes.", time:30, ease:1, ingredients:["FOR THE SALAD:","6 oz soba noodles","1 cup carrots, shredded","1 cup edamame beans, shelled and cooked","1 cup red bell pepper, thinly sliced","1 cup English cucumber, seeds removed and thinly sliced","1/2 cup sugar snap peas, cut in half diagonally","1/2 cup red cabbage, thinly sliced","1/4 cup green onions, thinly sliced on a bias","2 tsp sesame seeds, toasted","1/3 cup fresh cilantro","black pepper, as needed","FOR THE SOY DRESSING:","2 tbsp soy sauce","2 tbsp rice wine vinegar","1/4 cup orange juice","1 tbsp lime juice","zest of 1 lime","1/2 tsp sugar","1 1/2 tsp sriracha, or to taste","1 clove garlic, minced","1 tbsp sesame oil","3 tbsp grapeseed oil (or olive oil)"], steps:["Bring a large pot of water to a boil. Cook the soba noodles according to package instructions, about 4 minutes.","Drain and transfer noodles immediately into an ice bath to stop the cooking. Drain again and lightly dry on paper towels.","In a large bowl, combine the soba noodles with all of the cut vegetables and set aside.","In a medium bowl, whisk together all of the dressing ingredients EXCEPT the sesame oil and grapeseed oil.","Gradually add the sesame oil and whisk to combine, then slowly add the grapeseed oil and whisk until emulsified.","Pour the dressing over the salad, add sesame seeds and cilantro, and toss to combine."], tags:["noodles","salad","japanese","healthy","make ahead","vegetarian"], ratings:{}, cookHistory:[], pairings:["r30"], notes:"Makes about 3 servings. Great as a side with salmon, or add grilled chicken, shrimp or tofu to make it an entree. Leftovers are excellent - the noodles soak up the dressing overnight. Check the label for gluten-free soba if needed.", photo:null, source:"https://www.jessicagavin.com/asian-soba-noodle-salad-with-soy-dressing/" },
+  { id:"r36", isSample:false, type:"food", title:"Bang Bang Ground Turkey Rice Bowls", category:"everyday", description:"Seasoned ground turkey in a sweet-spicy skillet sauce over rice with crunchy toppings and a creamy bang bang sauce. On the table in about 25 minutes.", time:25, ease:1, ingredients:["FOR THE GROUND TURKEY MIXTURE:","1 lb ground turkey (85-93% lean preferred)","1 tbsp sesame oil, or favorite cooking oil","2-3 garlic cloves, minced","2 tsp grated ginger","1/2 tsp smoked paprika","1/2 tsp onion powder","3 tbsp low sodium soy sauce","1-2 tbsp sriracha","2-3 tbsp chicken broth","2 tsp honey","1/2 tsp black pepper","1/2 tsp sea salt, more or less to taste","2 tsp corn starch","FOR THE BANG BANG SAUCE:","1/2 cup mayonnaise","3 tbsp sweet chili sauce","1/2 to 1 tbsp sriracha, more to kick up the spice","1 tsp rice vinegar","2 tsp honey","FOR THE BOWLS:","cooked rice","shredded carrots, sliced cucumbers, shelled edamame, pickled onions, avocado, shredded cabbage","sliced green onion and sesame seeds, to garnish"], steps:["Make the bang bang sauce: add mayonnaise, sweet chili sauce, sriracha, rice vinegar and honey to a small bowl. Whisk well to combine. Adjust with more sriracha for heat or more honey or sweet chili sauce to mellow it. Chill until ready to serve.","Over medium-high heat, add the sesame oil to a large skillet. When glistening, add the ground turkey and break into smaller pieces.","When the turkey is browned and reaches an internal temperature of 165F, shift to medium-low heat and add all remaining turkey mixture ingredients EXCEPT the cornstarch.","Simmer 2-3 minutes, stirring occasionally. Sprinkle the cornstarch over the top and stir to combine to thicken.","Just before serving, stir about 2 tablespoons of the bang bang sauce into the meat (optional).","Assemble the bowls: add rice, veggies and the turkey mixture. Drizzle bang bang sauce over the top and garnish with green onion and sesame seeds."], tags:["turkey","rice bowl","quick","weeknight","spicy","asian"], ratings:{}, cookHistory:[], pairings:[], notes:"Serves 4. Minute rice or leftover rice keeps this fast. If the turkey mixture gets dry, add a splash more soy sauce or broth. Use tamari instead of soy sauce to make it gluten free. Works with ground beef, pork or chicken too. Leftovers: turkey keeps 3-4 days, sauce up to a week; the turkey also freezes well for about 3 months.", photo:null, source:"https://lemonsandzest.com/ground-turkey-rice-bowls/" },
 ];
 
 // ─── Main App ─────────────────────────────────────────────────────────────────
@@ -1317,7 +1318,7 @@ function ImportModal({ onClose, onSave }) {
       body:JSON.stringify({
         model:AI_MODEL,
         max_tokens:1500,
-        system:"You are a recipe extractor. The user will give you a URL or text. Extract the COMPLETE recipe including every component - any dressing, sauce, salsa, marinade, side or topping that belongs to the dish. Do not omit these even when they sit in a separate section of the page. Group the ingredients with clear labelled headers as their own array entries, for example FOR THE SALAD: then its ingredients, then FOR THE DRESSING: then its ingredients. The steps must cover the whole dish end to end. Return ONLY a valid JSON object with NO other text, NO markdown, NO explanation. Use these exact keys: type (either food or cocktail - use cocktail for any alcoholic mixed drink), title (string), description (string), ingredients (array of strings), steps (array of strings), time (number in minutes), ease (1=easy 2=medium 3=hard), category (everyday or healthy or treat or holiday), tags (array of strings), notes (string). If given a URL you cannot access, use your knowledge of that recipe site and URL to infer the complete recipe.",
+        system:"You are a recipe extractor. The user will give you a URL or text. Extract the COMPLETE recipe including every component - any dressing, sauce, salsa, marinade, side or topping that belongs to the dish. Do not omit these even when they sit in a separate section of the page. Group the ingredients with clear labelled headers as their own array entries, for example FOR THE SALAD: then its ingredients, then FOR THE DRESSING: then its ingredients. The steps must cover the whole dish end to end. Return ONLY a valid JSON object with NO other text, NO markdown, NO explanation. Use these exact keys: type (either food or cocktail - use cocktail for any alcoholic mixed drink), title (string), description (string), ingredients (array of strings), steps (array of strings), time (number in minutes), ease (1=easy 2=medium 3=hard), category (everyday or healthy or treat or holiday), tags (array of strings), notes (string). You are given the actual page content - transcribe quantities EXACTLY as written, never estimate or substitute from memory. If the content contains no recipe, return {}.",
         messages:[{role:"user",content:prompt}]
       })
     });
@@ -1360,10 +1361,26 @@ function ImportModal({ onClose, onSave }) {
   const handleSingleImport = async () => {
     setLoading(true); setError(""); setResult(null);
     try {
-      const prompt = mode==="url"
-        ? `Extract the recipe from this URL: ${url}`
-        : `Extract the recipe from this text:\n\n${text}`;
-      const recipe = await extractFromAI(prompt, url);
+      let prompt;
+      if (mode === "url") {
+        // Pull the real page text through the worker first - never guess from the URL alone
+        let pageText = "";
+        try {
+          const r = await fetch(AI_URL, { method:"POST", headers:{"Content-Type":"application/json"},
+            body: JSON.stringify({ fetchUrl: url }) });
+          if (r.ok) {
+            const d = await r.json();
+            if (d && d.text && d.text.length > 400) pageText = d.text;
+          }
+        } catch(e) {}
+        if (!pageText) {
+          throw new Error("Couldn't open that page. Copy the recipe text and use the Paste text tab.");
+        }
+        prompt = "Extract the recipe from this page content. Source URL: " + url + "\n\nPAGE CONTENT:\n" + pageText;
+      } else {
+        prompt = "Extract the recipe from this text:\n\n" + text;
+      }
+      const recipe = await extractFromAI(prompt, mode==="url" ? url : "");
       setResult(recipe);
     } catch(e) { setError(String(e.message || "Could not parse recipe. Please try again.").slice(0,200)); }
     setLoading(false);
