@@ -304,6 +304,7 @@ if (!window.firebase.apps.length) window.firebase.initializeApp(firebaseConfig);
 const db = window.firebase.database();
 
 // ─── AI model resolution (survives model retirements) ────────────────────────
+const BUILD = "b12";
 const AI_URL = "https://lucky-bonus-4a7a.christopher-a-daggett.workers.dev";
 const DEFAULT_MODELS = ["claude-sonnet-5","claude-haiku-4-5-20251001","claude-sonnet-4-5","claude-sonnet-4-20250514"];
 let MODEL_CHAIN = DEFAULT_MODELS.slice();
@@ -486,6 +487,7 @@ function App() {
         <div className="topbar-brand">our <em>kitchen</em>
           <span style={{marginLeft:8,fontSize:".65rem",opacity:.7,fontFamily:"'Jost',sans-serif",fontWeight:400}}>
             {syncStatus==="connecting"?"⏳":syncStatus==="synced"?"🟢":"🔴"}
+            <span style={{marginLeft:6,opacity:.55,fontSize:".6rem"}}>{BUILD}</span>
           </span>
         </div>
         {["food","cocktails","planner","suggest","bar","export"].map(t=>(
