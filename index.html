@@ -304,7 +304,7 @@ if (!window.firebase.apps.length) window.firebase.initializeApp(firebaseConfig);
 const db = window.firebase.database();
 
 // ─── AI model resolution (survives model retirements) ────────────────────────
-const BUILD = "b13";
+const BUILD = "b14";
 const AI_URL = "https://lucky-bonus-4a7a.christopher-a-daggett.workers.dev";
 
 // Firebase hands back an object (not an array) whenever an array has gaps.
@@ -313,6 +313,28 @@ function toArr(v) {
   if (Array.isArray(v)) return v.filter(function(x){ return x; });
   if (v && typeof v === "object") return Object.keys(v).map(function(k){ return v[k]; }).filter(function(x){ return x; });
   return [];
+}
+
+// A recipe missing a title or id will crash the list. Repair rather than render it.
+function safeRecipes(v) {
+  return toArr(v).map(function(r){
+    if (!r || typeof r !== "object") return null;
+    return Object.assign({}, r, {
+      id: r.id || ("r" + Math.random().toString(36).slice(2,8)),
+      title: (typeof r.title === "string" && r.title.trim()) ? r.title : "Untitled recipe",
+      description: typeof r.description === "string" ? r.description : "",
+      type: r.type === "cocktail" ? "cocktail" : "food",
+      category: r.category || "everyday",
+      ingredients: toArr(r.ingredients),
+      steps: toArr(r.steps),
+      tags: toArr(r.tags),
+      pairings: toArr(r.pairings),
+      cookHistory: toArr(r.cookHistory),
+      ratings: (r.ratings && typeof r.ratings === "object") ? r.ratings : {},
+      time: Number(r.time) || 30,
+      ease: Number(r.ease) || 1
+    });
+  }).filter(function(x){ return x; });
 }
 const DEFAULT_MODELS = ["claude-sonnet-5","claude-haiku-4-5-20251001","claude-sonnet-4-5","claude-sonnet-4-20250514"];
 let MODEL_CHAIN = DEFAULT_MODELS.slice();
@@ -430,7 +452,7 @@ function App() {
         db.ref("recipes").set(SAMPLE_RECIPES);
       } else {
         // Merge new recipes from code, and drop any duplicate titles already stored
-        const raw = toArr(snap.val());
+        const raw = safeRecipes(snap.val());
         const byTitle = new Map();
         raw.forEach(function(r){
           if (!r || !r.title) return;
@@ -445,7 +467,7 @@ function App() {
     }).catch(() => setSyncStatus("error"));
     db.ref("recipes").on("value", snap => {
       if(snap.exists()){
-        const loaded = toArr(snap.val());
+        const loaded = safeRecipes(snap.val());
         setRecipes(loaded);
         setSyncStatus("synced");
         // Restore previously open recipe
@@ -488,7 +510,7 @@ function App() {
   const type = tab==="cocktails"?"cocktail":"food";
   const filtered = recipes.filter(r => {
     if(r.type!==type) return false;
-    if(filters.search && !r.title.toLowerCase().includes(filters.search.toLowerCase()) && !r.description.toLowerCase().includes(filters.search.toLowerCase())) return false;
+    if(filters.search && !(r.title||"").toLowerCase().includes(filters.search.toLowerCase()) && !(r.description||"").toLowerCase().includes(filters.search.toLowerCase())) return false;
     if(filters.category!=="all" && r.category!==filters.category) return false;
     if(filters.ease!=="all" && r.ease!==Number(filters.ease)) return false;
     if(filters.maxTime && r.time>Number(filters.maxTime)) return false;
@@ -877,7 +899,7 @@ function PlannerTab({ mealPlan, recipes, addToDay, removeFromDay, pickerDay, set
               <input className="search-input" style={{marginBottom:10}} placeholder="Search recipes…"
                 value={pickerSearch||""} onChange={e=>setPickerSearch(e.target.value)} />
               <div className="picker-list">
-                {recipes.filter(r=>r.type==="food"&&(!pickerSearch||r.title.toLowerCase().includes(pickerSearch.toLowerCase()))).map(r=>(
+                {recipes.filter(r=>r.type==="food"&&(!pickerSearch||(r.title||"").toLowerCase().includes(pickerSearch.toLowerCase()))).map(r=>(
                   <button key={r.id} className="picker-item" onClick={()=>{addToDay(pickerDay,r);setPickerSearch("");}}>
                     <span>{r.title}</span>
                     <span style={{opacity:.6,fontSize:".75rem"}}>{r.time}m · {avgRating(r.ratings)?`★${avgRating(r.ratings)}`:""}</span>
@@ -1155,14 +1177,14 @@ function RecipeDetail({ recipe, allRecipes, trustedSources, onClose, onSave, onE
               const blob = new Blob([lines], {type:"text/plain"});
               const a = document.createElement("a");
               a.href = URL.createObjectURL(blob);
-              a.download = `${r.title.replace(/[^a-z0-9]/gi,"_")}.txt`;
+              a.download = (r.title||"recipe").replace(/[^a-z0-9]/gi,"_") + ".txt";
               a.click();
             }}>📄 Export as text</button>
             <button className="btn btn-ghost btn-sm" onClick={()=>{
               const blob = new Blob([JSON.stringify(r, null, 2)], {type:"application/json"});
               const a = document.createElement("a");
               a.href = URL.createObjectURL(blob);
-              a.download = `${r.title.replace(/[^a-z0-9]/gi,"_")}.json`;
+              a.download = (r.title||"recipe").replace(/[^a-z0-9]/gi,"_") + ".json";
               a.click();
             }}>📦 Export as JSON</button>
             <button className="btn btn-ghost btn-sm" onClick={()=>{
@@ -1318,6 +1340,9 @@ function ImportModal({ onClose, onSave }) {
       } catch(e2) {
         throw new Error("Could not parse recipe from response. Raw: " + raw.slice(0,200));
       }
+    }
+    if (!parsed || !parsed.title || !String(parsed.title).trim()) {
+      throw new Error("Couldn't read a recipe from that page. Try the Paste text tab instead.");
     }
     return { id:genId(), type:"food", photo:null, ratings:{}, cookHistory:[], pairings:[], isSample:false,
       source: sourceUrl,
