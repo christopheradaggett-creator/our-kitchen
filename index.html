@@ -281,6 +281,10 @@ html,body{height:100%;background:var(--bg);font-family:'Jost',sans-serif;color:v
 .guest-item{background:#fff;border:1px solid var(--border);border-radius:12px;padding:15px;margin-bottom:11px;}
 .guest-item-title{font-family:'Cormorant Garamond',serif;font-size:1.28rem;color:var(--ink);}
 .guest-item-desc{font-size:.8rem;color:var(--muted);line-height:1.5;margin-top:3px;}
+.ready-banner{background:#2f6b46;color:#f4fbf6;border-radius:12px;padding:14px 16px;margin-bottom:16px;display:flex;align-items:center;gap:12px;animation:readyPop .45s ease;}
+.ready-banner-txt{flex:1;line-height:1.35;}
+.ready-banner-x{background:rgba(255,255,255,.18);border:none;color:#fff;border-radius:14px;width:26px;height:26px;font-size:.8rem;cursor:pointer;flex-shrink:0;}
+@keyframes readyPop{from{opacity:0;transform:translateY(-8px);}to{opacity:1;transform:none;}}
 .guest-toast{position:fixed;left:50%;transform:translateX(-50%);bottom:24px;background:var(--nav);color:#f7f3ee;padding:11px 20px;border-radius:22px;font-size:.85rem;z-index:200;box-shadow:0 4px 16px rgba(0,0,0,.25);}
 .mine-chip{display:inline-flex;align-items:center;gap:5px;background:var(--warm);border-radius:14px;padding:4px 11px;font-size:.75rem;margin:0 6px 6px 0;color:var(--ink);}
 </style>
@@ -304,7 +308,7 @@ if (!window.firebase.apps.length) window.firebase.initializeApp(firebaseConfig);
 const db = window.firebase.database();
 
 // ─── AI model resolution (survives model retirements) ────────────────────────
-const BUILD = "b16";
+const BUILD = "b20";
 const AI_URL = "https://lucky-bonus-4a7a.christopher-a-daggett.workers.dev";
 
 // Firebase hands back an object (not an array) whenever an array has gaps.
@@ -312,6 +316,64 @@ const AI_URL = "https://lucky-bonus-4a7a.christopher-a-daggett.workers.dev";
 function toArr(v) {
   if (Array.isArray(v)) return v.filter(function(x){ return x; });
   if (v && typeof v === "object") return Object.keys(v).map(function(k){ return v[k]; }).filter(function(x){ return x; });
+  return [];
+}
+
+// A menu wants one clean line, not a paragraph.
+function firstSentence(str, cap) {
+  const t = String(str == null ? "" : str).trim();
+  if (!t) return "";
+  const m = t.match(/^[\s\S]*?[.!?](\s|$)/);
+  let out = m ? m[0].trim() : t;
+  const limit = cap || 140;
+  if (out.length > limit) out = out.slice(0, limit).replace(/\s+\S*$/, "") + "…";
+  return out;
+}
+
+// Guests want to know what is in it, not how much. Drop the measurements.
+function ingName(line) {
+  let t = String(line == null ? "" : line).trim();
+  if (!t) return "";
+  if (/^for the\b/i.test(t) || /:$/.test(t)) return "";
+  t = t.replace(/^[0-9\u00BC-\u00BE\u2150-\u215E\s\/\.\-]+/, "");
+  t = t.replace(/^(fl\s*)?(oz|ounces?|ml|cl|dashes?|dash|tsp|teaspoons?|tbsp|tablespoons?|cups?|pinches?|pinch|parts?|barspoons?|drops?|splashes?|splash)\b\.?\s*/i, "");
+  t = t.replace(/^of\s+/i, "");
+  t = t.replace(/,?\s*\(?(for |to )?(garnish|serving|serve|taste)\)?\.?\s*$/i, "");
+  t = t.replace(/,?\s*\(optional\)\s*$/i, "");
+  return t.trim();
+}
+
+function pourList(r, max) {
+  const names = toArr(r && r.ingredients).map(ingName).filter(function(x){ return x; });
+  const n = max || 5;
+  if (names.length <= n) return names.join(", ");
+  return names.slice(0, n).join(", ") + ", …";
+}
+
+// Models wrap JSON in prose, code fences or an object. Dig the array out anyway.
+function looseJson(raw) {
+  let t = String(raw == null ? "" : raw).replace(/```json/gi, "").replace(/```/g, "").trim();
+  const tries = [];
+  tries.push(t);
+  const a = t.indexOf("["), b = t.lastIndexOf("]");
+  if (a >= 0 && b > a) tries.push(t.slice(a, b + 1));
+  const o = t.indexOf("{"), c = t.lastIndexOf("}");
+  if (o >= 0 && c > o) tries.push(t.slice(o, c + 1));
+  for (let i = 0; i < tries.length; i++) {
+    try { return JSON.parse(tries[i]); } catch (e) {}
+  }
+  return null;
+}
+
+// Accept an array, or an object with an array inside it.
+function asList(v) {
+  if (Array.isArray(v)) return v;
+  if (v && typeof v === "object") {
+    const keys = Object.keys(v);
+    for (let i = 0; i < keys.length; i++) {
+      if (Array.isArray(v[keys[i]])) return v[keys[i]];
+    }
+  }
   return [];
 }
 
@@ -1862,16 +1924,30 @@ function MenuBuilder({ recipes, onSaveRecipe, onClose }) {
     });
     try {
       const res = await fetch(AI_URL, { method:"POST", headers:{"Content-Type":"application/json"},
-        body: JSON.stringify({ model: AI_MODEL, max_tokens: 1200,
-          system: "You are a bartender planning a home bar night. Given the ingredients already in use, suggest 2 additional classic or well-known cocktails that reuse those SAME bottles so the host does not need to buy anything new. Prefer genuinely established drinks over inventions. Return ONLY a valid JSON array, no markdown: [{\"title\":\"...\",\"description\":\"...\",\"ingredients\":[\"2 oz ...\"],\"steps\":[\"...\"],\"uses\":\"which shared bottles it leans on\"}]",
+        body: JSON.stringify({ model: AI_MODEL, max_tokens: 2000,
+          system: "You are a bartender planning a home bar night. The user lists the ingredients already in use. Suggest 2 additional well-known cocktails that reuse those SAME bottles, so nothing new needs buying. Prefer established drinks over inventions. Reply with a JSON array and nothing else. Each element: title, description, ingredients (array of strings with quantities), steps (array of strings), uses (short string naming the shared bottles).",
           messages: [{ role:"user", content: "Ingredients already on the menu:\n" + bottles.join("\n") }] }) });
-      if (!res.ok) throw new Error("unavailable");
-      const data = await res.json();
-      if (data.error) throw new Error("unavailable");
-      const raw = (data.content && data.content[0] && data.content[0].text) || "[]";
-      const parsed = JSON.parse(raw.replace(/```json|```/g,"").trim());
-      setIdeas(Array.isArray(parsed) ? parsed : []);
-    } catch(e) { setIdeasErr("Couldn't reach the AI just now."); }
+
+      const bodyText = await res.text();
+      if (!res.ok) {
+        throw new Error("Server " + res.status + ": " + bodyText.slice(0,120));
+      }
+      let data;
+      try { data = JSON.parse(bodyText); }
+      catch(e) { throw new Error("Unreadable reply from the worker."); }
+      if (data.error) {
+        const m = typeof data.error === "string" ? data.error : (data.error.message || "API error");
+        throw new Error(String(m).slice(0,140));
+      }
+      const raw = (data.content && data.content[0] && data.content[0].text) || "";
+      const list = asList(looseJson(raw)).filter(x => x && x.title);
+      if (list.length === 0) {
+        setIdeasErr("Nothing came back that fits these bottles. Try picking another drink or two.");
+      }
+      setIdeas(list);
+    } catch(e) {
+      setIdeasErr(String(e.message || "Couldn't reach the AI just now.").slice(0,180));
+    }
     setIdeasLoading(false);
   };
 
@@ -1901,11 +1977,17 @@ function MenuBuilder({ recipes, onSaveRecipe, onClose }) {
 
   const menuText = () => {
     if (!session) return "";
-    const titles = (session.cocktailIds||[]).map(id => {
+    const lines = (session.cocktailIds||[]).map(id => {
       const r = recipes.find(x=>x.id===id);
-      return r ? ("- " + r.title) : null;
-    }).filter(Boolean).join("\n");
-    return session.name + "\n\n" + titles + "\n\nTap to order: " + guestUrl;
+      if (!r) return null;
+      let block = r.title;
+      const d = firstSentence(r.description, 110);
+      if (d) block += "\n  " + d;
+      const p = pourList(r);
+      if (p) block += "\n  " + p;
+      return block;
+    }).filter(Boolean).join("\n\n");
+    return session.name + "\n\n" + lines + "\n\nTap to order: " + guestUrl;
   };
 
   const shareMenu = async () => {
@@ -1935,7 +2017,14 @@ function MenuBuilder({ recipes, onSaveRecipe, onClose }) {
               <div style={{marginBottom:14}}>
                 {(session.cocktailIds||[]).map(id=>{
                   const r = recipes.find(x=>x.id===id);
-                  return r ? <div key={id} style={{fontSize:".86rem",color:"var(--muted)",padding:"3px 0"}}>· {r.title}</div> : null;
+                  if (!r) return null;
+                  return (
+                    <div key={id} style={{padding:"7px 0",borderBottom:"1px solid var(--border)"}}>
+                      <div style={{fontSize:".9rem",color:"var(--ink)"}}>{r.title}</div>
+                      {r.description && <div style={{fontSize:".76rem",color:"var(--muted)",marginTop:1}}>{firstSentence(r.description)}</div>}
+                      {pourList(r) && <div style={{fontSize:".72rem",color:"var(--terra)",marginTop:3}}>{pourList(r)}</div>}
+                    </div>
+                  );
                 })}
               </div>
               <div className="bar-qr">
@@ -2129,10 +2218,11 @@ function BarTab({ recipes }) {
         <div className="section-label" style={{marginTop:0}}>Orders {pending.length > 0 && "(" + pending.length + " waiting)"}</div>
         {pending.length === 0 && <p style={{color:"var(--muted)",fontSize:".85rem"}}>No orders yet. Pass out the QR code.</p>}
         {pending.map(o=>(
-          <div key={o.key} className="order-row">
+          <div key={o.key} className="order-row" style={o.custom ? {borderLeft:"3px solid var(--terra)"} : {}}>
             <div style={{flex:1}}>
               <div className="order-who">{o.name}</div>
-              <div className="order-what">{o.title}</div>
+              <div className="order-what">{o.custom && <span title="write-in request">✍️ </span>}{o.title}</div>
+              {o.custom && <div style={{fontSize:".68rem",color:"var(--terra)",marginTop:1}}>not on the menu</div>}
             </div>
             <button className="btn btn-primary btn-sm" onClick={()=>setStatus(o.key,"made")}>Made</button>
           </div>
@@ -2148,7 +2238,7 @@ function BarTab({ recipes }) {
                   <div key={o.key} className="order-row made">
                     <div style={{flex:1}}>
                       <div className="order-who">{o.name}</div>
-                      <div className="order-what">{o.title}</div>
+                      <div className="order-what">{o.custom && "✍️ "}{o.title}</div>
                     </div>
                     <button className="btn btn-ghost btn-sm" onClick={()=>setStatus(o.key,"pending")}>Undo</button>
                   </div>
@@ -2171,6 +2261,9 @@ function GuestMenu({ barId }) {
   const [nameSet, setNameSet] = useState(false);
   const [orders, setOrders] = useState([]);
   const [toast, setToast] = useState("");
+  const [ready, setReady] = useState([]);
+  const [writeIn, setWriteIn] = useState("");
+  const seenMade = useRef(null);
 
   useEffect(()=>{
     try {
@@ -2186,6 +2279,26 @@ function GuestMenu({ barId }) {
       const v = snap.exists() ? snap.val() : {};
       const arr = Object.keys(v).map(k => Object.assign({key:k}, v[k]));
       arr.sort((a,b)=>(a.ts||0)-(b.ts||0));
+
+      const madeNow = {};
+      arr.forEach(function(o){ if (o.status === "made") madeNow[o.key] = o; });
+
+      if (seenMade.current === null) {
+        // First load - don't announce drinks that were already poured
+        seenMade.current = madeNow;
+      } else {
+        let who = "";
+        try { who = (localStorage.getItem("ok_bar_name") || "").trim(); } catch(e) {}
+        const fresh = [];
+        Object.keys(madeNow).forEach(function(k){
+          if (!seenMade.current[k] && who && madeNow[k].name === who) fresh.push(madeNow[k].title);
+        });
+        seenMade.current = madeNow;
+        if (fresh.length > 0) {
+          setReady(r => r.concat(fresh));
+          try { if (navigator.vibrate) navigator.vibrate([120,60,120]); } catch(e) {}
+        }
+      }
       setOrders(arr);
     });
     return ()=>{ sRef.off(); rRef.off(); oRef.off(); };
@@ -2200,6 +2313,15 @@ function GuestMenu({ barId }) {
   const order = (c) => {
     db.ref("bar/orders").push({ name: name.trim(), recipeId: c.id, title: c.title, ts: Date.now(), status: "pending" });
     setToast(c.title + " ordered");
+    setTimeout(()=>setToast(""), 2200);
+  };
+
+  const sendWriteIn = () => {
+    const t = writeIn.trim();
+    if (!t) return;
+    db.ref("bar/orders").push({ name: name.trim(), recipeId: "", title: t, custom: true, ts: Date.now(), status: "pending" });
+    setWriteIn("");
+    setToast("Request sent to the bar");
     setTimeout(()=>setToast(""), 2200);
   };
 
@@ -2242,12 +2364,27 @@ function GuestMenu({ barId }) {
         <div className="guest-sub">ordering as {name}</div>
       </div>
 
+      {ready.length > 0 && (
+        <div className="ready-banner">
+          <span style={{fontSize:"1.4rem"}}>🍸</span>
+          <div className="ready-banner-txt">
+            <div style={{fontWeight:600,fontSize:".95rem"}}>
+              {ready.length === 1 ? "Your " + ready[0] + " is ready" : ready.length + " drinks ready"}
+            </div>
+            {ready.length > 1 && <div style={{fontSize:".78rem",opacity:.85,marginTop:2}}>{ready.join(", ")}</div>}
+            <div style={{fontSize:".75rem",opacity:.8,marginTop:2}}>Come grab it from the bar.</div>
+          </div>
+          <button className="ready-banner-x" onClick={()=>setReady([])}>✕</button>
+        </div>
+      )}
+
       {mine.length > 0 && (
         <div style={{marginBottom:18}}>
           <div className="section-label" style={{marginTop:0}}>Your orders</div>
           {mine.map(o=>(
-            <span key={o.key} className="mine-chip">
-              {o.status==="made" ? "\u2713" : "\u23F3"} {o.title}
+            <span key={o.key} className="mine-chip"
+              style={o.status==="made" ? {background:"#e3f1e8",color:"#2f6b46"} : {}}>
+              {o.status==="made" ? "\u2713 ready" : "\u23F3 making"} · {o.custom ? "✍️ " : ""}{o.title}
             </span>
           ))}
         </div>
@@ -2257,11 +2394,24 @@ function GuestMenu({ barId }) {
       {menu.map(c=>(
         <div key={c.id} className="guest-item">
           <div className="guest-item-title">{c.title}</div>
-          {c.description && <div className="guest-item-desc">{c.description}</div>}
+          {c.description && <div className="guest-item-desc">{firstSentence(c.description)}</div>}
+          {pourList(c) && <div style={{fontSize:".73rem",color:"var(--terra)",marginTop:6,letterSpacing:".02em"}}>{pourList(c)}</div>}
           <button className="btn btn-primary btn-sm" style={{marginTop:11,width:"100%",justifyContent:"center"}}
             onClick={()=>order(c)}>Order this</button>
         </div>
       ))}
+
+      <div className="guest-item" style={{marginTop:16}}>
+        <div className="guest-item-title" style={{fontSize:"1.05rem"}}>Something else?</div>
+        <div className="guest-item-desc">Ask for anything - a beer, a wine, a drink you know. No promises.</div>
+        <div style={{display:"flex",gap:8,marginTop:11}}>
+          <input className="finput" style={{flex:1,padding:"9px 12px",fontSize:".88rem"}}
+            value={writeIn} onChange={e=>setWriteIn(e.target.value)}
+            onKeyDown={e=>{ if(e.key==="Enter") sendWriteIn(); }}
+            placeholder="e.g. vodka soda with lime" />
+          <button className="btn btn-primary btn-sm" onClick={sendWriteIn} disabled={!writeIn.trim()}>Send</button>
+        </div>
+      </div>
 
       <button className="btn btn-ghost btn-sm" style={{marginTop:18,fontSize:".72rem"}}
         onClick={()=>{ try{localStorage.removeItem("ok_bar_name");}catch(e){} setNameSet(false); }}>
