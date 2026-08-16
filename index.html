@@ -304,7 +304,7 @@ if (!window.firebase.apps.length) window.firebase.initializeApp(firebaseConfig);
 const db = window.firebase.database();
 
 // ─── AI model resolution (survives model retirements) ────────────────────────
-const BUILD = "b15";
+const BUILD = "b16";
 const AI_URL = "https://lucky-bonus-4a7a.christopher-a-daggett.workers.dev";
 
 // Firebase hands back an object (not an array) whenever an array has gaps.
@@ -313,6 +313,23 @@ function toArr(v) {
   if (Array.isArray(v)) return v.filter(function(x){ return x; });
   if (v && typeof v === "object") return Object.keys(v).map(function(k){ return v[k]; }).filter(function(x){ return x; });
   return [];
+}
+
+// Words that say nothing about which bottles a drink needs.
+const POUR_STOP = new Set(["ice","cube","cubes","large","fresh","freshly","juice","juiced","peel","twist","garnish",
+"for","the","and","oz","fluid","dash","dashes","pinch","pinches","cup","tsp","tbsp","optional","chilled","simple",
+"water","soda","sugar","salt","rim","rimmed","wheel","slice","sliced","sprig","leaves","leaf","top","with","splash",
+"barspoon","drop","drops","serve","serving","preferred","quality","good","about","plus","extra","taste","cold","hot",
+"grated","expressed","express","strip","wedge","half","whole","small","medium"]);
+
+function pourTokens(r) {
+  const out = new Set();
+  toArr(r.ingredients).forEach(function(line){
+    String(line).toLowerCase().replace(/[^a-z ]/g, " ").split(" ").forEach(function(w){
+      if (w.length > 2 && !POUR_STOP.has(w)) out.add(w);
+    });
+  });
+  return out;
 }
 
 // A recipe missing a title or id will crash the list. Repair rather than render it.
@@ -444,6 +461,7 @@ function App() {
   });
   const [modal, setModal] = useState(null);
   const [editRecipe, setEditRecipe] = useState(null);
+  const [menuBuilder, setMenuBuilder] = useState(false);
   const [pickerDay, setPickerDay] = useState(null);
   const [filters, setFilters] = useState({search:"",category:"all",ease:"all",maxTime:"",minRating:""});
 
@@ -539,7 +557,8 @@ function App() {
           <>
             <div className="sec-head">
               <h1 className="sec-title">{tab==="cocktails"?"Cocktails & Drinks":"Family Recipes"}</h1>
-              <div style={{display:"flex",gap:8}}>
+              <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                {tab==="cocktails" && <button className="btn btn-ghost btn-sm" onClick={()=>setMenuBuilder(true)}>🍹 Menu for tonight</button>}
                 <button className="btn btn-ghost btn-sm" onClick={()=>setModal("import")}>⬆ Import</button>
                 <button className="btn btn-primary" onClick={()=>setModal("add")}>+ Add {tab==="cocktails"?"Drink":"Recipe"}</button>
               </div>
@@ -625,6 +644,7 @@ function App() {
       </main>
       {detail&&<RecipeDetail recipe={detail} allRecipes={recipes} trustedSources={trustedSources} onClose={()=>setDetail(null)} onSave={(r)=>{saveRecipe(r);setDetail(r);}} onEdit={(r)=>{setEditRecipe(r);}} onDelete={(id)=>{deleteRecipe(id);setDetail(null);}} />}
       {modal==="add"&&<RecipeForm type={type} onClose={()=>setModal(null)} onSave={(r)=>{saveRecipe(r);setModal(null);}} />}
+      {menuBuilder&&<MenuBuilder recipes={recipes} onSaveRecipe={saveRecipe} onClose={()=>setMenuBuilder(false)} />}
       {editRecipe&&<RecipeForm type={editRecipe.type} initial={editRecipe} isEdit={true} onClose={()=>setEditRecipe(null)} onSave={(r)=>{saveRecipe(r);setDetail(r);setEditRecipe(null);}} />}
       {modal==="import"&&<ImportModal onClose={()=>setModal(null)} onSave={(r)=>{saveRecipe(r);setModal(null);}} />}
       {modal==="aiMeal"&&<AIMealModal recipes={recipes} mealPlan={mealPlan} prefs={prefs} onClose={()=>setModal(null)} />}
@@ -1780,6 +1800,226 @@ function ExportPanel({ recipes, setRecipes, trustedSources, setTrustedSources })
   );
 }
 
+
+
+// ─── Cocktail menu builder (Cocktails tab -> "Menu for tonight") ─────────────
+function MenuBuilder({ recipes, onSaveRecipe, onClose }) {
+  const [nightName, setNightName] = useState("");
+  const [picked, setPicked] = useState([]);
+  const [session, setSession] = useState(null);
+  const [copied, setCopied] = useState(false);
+  const [ideas, setIdeas] = useState([]);
+  const [ideasLoading, setIdeasLoading] = useState(false);
+  const [ideasErr, setIdeasErr] = useState("");
+  const [saved, setSaved] = useState([]);
+  const qrRef = useRef(null);
+
+  const cocktails = recipes.filter(r=>r.type==="cocktail");
+
+  useEffect(()=>{
+    const ref = db.ref("bar/session");
+    ref.on("value", snap => setSession(snap.exists() ? snap.val() : null));
+    return ()=>ref.off();
+  },[]);
+
+  const guestUrl = session ? (window.location.origin + window.location.pathname + "?bar=" + session.id) : "";
+
+  useEffect(()=>{
+    if (!session || !qrRef.current) return;
+    qrRef.current.innerHTML = "";
+    if (typeof QRCode === "undefined") return;
+    try { new QRCode(qrRef.current, { text: guestUrl, width: 170, height: 170, colorDark:"#1c1410", colorLight:"#ffffff" }); } catch(e) {}
+  }, [session ? session.id : null]);
+
+  const toggle = (id) => setPicked(p => p.indexOf(id) >= 0 ? p.filter(x=>x!==id) : p.concat([id]));
+
+  // Other drinks in the book that lean on the same bottles
+  const alsoPours = (() => {
+    if (picked.length === 0) return [];
+    const have = new Set();
+    picked.forEach(id => {
+      const r = cocktails.find(c=>c.id===id);
+      if (r) pourTokens(r).forEach(t=>have.add(t));
+    });
+    return cocktails
+      .filter(c => picked.indexOf(c.id) < 0)
+      .map(c => {
+        const shared = [];
+        pourTokens(c).forEach(t => { if (have.has(t)) shared.push(t); });
+        return { c: c, n: shared.length, shared: shared.slice(0,4) };
+      })
+      .filter(x => x.n >= 2)
+      .sort((a,b)=>b.n-a.n)
+      .slice(0,3);
+  })();
+
+  const getIdeas = async () => {
+    setIdeasLoading(true); setIdeasErr(""); setIdeas([]);
+    const bottles = [];
+    picked.forEach(id => {
+      const r = cocktails.find(c=>c.id===id);
+      if (r) toArr(r.ingredients).forEach(i=>bottles.push(String(i)));
+    });
+    try {
+      const res = await fetch(AI_URL, { method:"POST", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({ model: AI_MODEL, max_tokens: 1200,
+          system: "You are a bartender planning a home bar night. Given the ingredients already in use, suggest 2 additional classic or well-known cocktails that reuse those SAME bottles so the host does not need to buy anything new. Prefer genuinely established drinks over inventions. Return ONLY a valid JSON array, no markdown: [{\"title\":\"...\",\"description\":\"...\",\"ingredients\":[\"2 oz ...\"],\"steps\":[\"...\"],\"uses\":\"which shared bottles it leans on\"}]",
+          messages: [{ role:"user", content: "Ingredients already on the menu:\n" + bottles.join("\n") }] }) });
+      if (!res.ok) throw new Error("unavailable");
+      const data = await res.json();
+      if (data.error) throw new Error("unavailable");
+      const raw = (data.content && data.content[0] && data.content[0].text) || "[]";
+      const parsed = JSON.parse(raw.replace(/```json|```/g,"").trim());
+      setIdeas(Array.isArray(parsed) ? parsed : []);
+    } catch(e) { setIdeasErr("Couldn't reach the AI just now."); }
+    setIdeasLoading(false);
+  };
+
+  const saveIdea = (idea, i) => {
+    onSaveRecipe({
+      id: genId(), isSample:false, type:"cocktail", title: idea.title || "Untitled drink",
+      description: idea.description || "", category:"treat", time:5, ease:1,
+      ingredients: toArr(idea.ingredients), steps: toArr(idea.steps),
+      tags:["cocktail"], ratings:{}, cookHistory:[], pairings:[],
+      notes: idea.uses ? ("Suggested for a menu night. Uses: " + idea.uses) : "", photo:null, source:""
+    });
+    setSaved(s=>s.concat([i]));
+  };
+
+  const openBar = () => {
+    if (picked.length === 0) return;
+    const id = Math.random().toString(36).slice(2,8);
+    db.ref("bar/session").set({ id: id, name: nightName.trim() || "Cocktail Night", cocktailIds: picked, createdAt: Date.now() });
+    db.ref("bar/orders").remove();
+  };
+
+  const closeBar = () => {
+    if (!window.confirm("Close the menu? This clears it and any orders.")) return;
+    db.ref("bar/session").remove(); db.ref("bar/orders").remove();
+    setPicked([]); setNightName("");
+  };
+
+  const menuText = () => {
+    if (!session) return "";
+    const titles = (session.cocktailIds||[]).map(id => {
+      const r = recipes.find(x=>x.id===id);
+      return r ? ("- " + r.title) : null;
+    }).filter(Boolean).join("\n");
+    return session.name + "\n\n" + titles + "\n\nTap to order: " + guestUrl;
+  };
+
+  const shareMenu = async () => {
+    const txt = menuText();
+    if (navigator.share) {
+      try { await navigator.share({ title: session.name, text: txt }); return; } catch(e) { return; }
+    }
+    window.location.href = "sms:&body=" + encodeURIComponent(txt);
+  };
+
+  const copyMenu = () => {
+    navigator.clipboard.writeText(menuText()).then(()=>{ setCopied(true); setTimeout(()=>setCopied(false),1800); }).catch(()=>{});
+  };
+
+  return (
+    <div className="overlay" onClick={onClose}>
+      <div className="modal" style={{maxWidth:520}} onClick={e=>e.stopPropagation()}>
+        <div className="modal-header">
+          <div className="modal-title" style={{fontSize:"1.5rem"}}>{session ? "Tonight's Menu" : "Menu for Tonight"}</div>
+          <button className="modal-close" onClick={onClose}>✕</button>
+        </div>
+        <div className="modal-body">
+
+          {session ? (
+            <>
+              <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:"1.35rem",color:"var(--ink)",marginBottom:4}}>{session.name}</div>
+              <div style={{marginBottom:14}}>
+                {(session.cocktailIds||[]).map(id=>{
+                  const r = recipes.find(x=>x.id===id);
+                  return r ? <div key={id} style={{fontSize:".86rem",color:"var(--muted)",padding:"3px 0"}}>· {r.title}</div> : null;
+                })}
+              </div>
+              <div className="bar-qr">
+                <div ref={qrRef}></div>
+                <div className="bar-link">{guestUrl}</div>
+              </div>
+              <div style={{display:"flex",gap:8,marginTop:14,flexWrap:"wrap"}}>
+                <button className="btn btn-primary" style={{flex:1,justifyContent:"center"}} onClick={shareMenu}>💬 Text the menu</button>
+                <button className="btn btn-ghost btn-sm" onClick={copyMenu}>{copied ? "✓ Copied" : "Copy"}</button>
+              </div>
+              <p style={{fontSize:".75rem",color:"var(--muted)",marginTop:12,lineHeight:1.5}}>
+                Orders land in the 🍹 Bar tab as guests place them.
+              </p>
+              <button className="btn btn-ghost btn-sm" style={{color:"var(--terra)",marginTop:10}} onClick={closeBar}>Close this menu</button>
+            </>
+          ) : cocktails.length === 0 ? (
+            <p style={{color:"var(--muted)",fontSize:".9rem"}}>Add some cocktails first and they will show up here.</p>
+          ) : (
+            <>
+              <div className="field" style={{marginBottom:14}}>
+                <label>Name the night</label>
+                <input className="finput" value={nightName} onChange={e=>setNightName(e.target.value)} placeholder="e.g. Poker Night" />
+              </div>
+
+              <div className="section-label" style={{marginTop:0}}>What are you pouring?</div>
+              {cocktails.map(c=>(
+                <div key={c.id} className="bar-pick" onClick={()=>toggle(c.id)}>
+                  <div className={"bar-pick-box" + (picked.indexOf(c.id)>=0 ? " on" : "")}>{picked.indexOf(c.id)>=0 && "\u2713"}</div>
+                  <div style={{flex:1}}>
+                    <div style={{fontSize:".9rem",color:"var(--ink)"}}>{c.title}</div>
+                    <div style={{fontSize:".75rem",color:"var(--muted)"}}>{c.description}</div>
+                  </div>
+                </div>
+              ))}
+
+              {alsoPours.length > 0 && (
+                <>
+                  <div className="section-label">Same bottles, no extra shopping</div>
+                  {alsoPours.map(x=>(
+                    <div key={x.c.id} className="bar-pick" onClick={()=>toggle(x.c.id)}>
+                      <div className="bar-pick-box"></div>
+                      <div style={{flex:1}}>
+                        <div style={{fontSize:".9rem",color:"var(--ink)"}}>{x.c.title}</div>
+                        <div style={{fontSize:".72rem",color:"var(--sage)"}}>shares {x.shared.join(", ")}</div>
+                      </div>
+                    </div>
+                  ))}
+                </>
+              )}
+
+              {picked.length > 0 && (
+                <div style={{marginTop:16}}>
+                  <button className="btn btn-ghost btn-sm" onClick={getIdeas} disabled={ideasLoading}>
+                    {ideasLoading ? "Thinking…" : "✨ More I could make with these bottles"}
+                  </button>
+                  {ideasErr && <p style={{fontSize:".78rem",color:"var(--terra)",marginTop:8}}>{ideasErr}</p>}
+                  {ideas.map((idea,i)=>(
+                    <div key={i} style={{background:"var(--warm)",borderRadius:10,padding:"12px 14px",marginTop:10}}>
+                      <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:"1.15rem",color:"var(--ink)"}}>{idea.title}</div>
+                      <div style={{fontSize:".78rem",color:"var(--muted)",marginTop:2}}>{idea.description}</div>
+                      {idea.uses && <div style={{fontSize:".72rem",color:"var(--sage)",marginTop:4}}>uses {idea.uses}</div>}
+                      <div style={{fontSize:".76rem",color:"#3a2e22",marginTop:6}}>
+                        {toArr(idea.ingredients).map((ing,j)=><div key={j}>· {ing}</div>)}
+                      </div>
+                      <button className="btn btn-ghost btn-sm" style={{marginTop:8}}
+                        onClick={()=>saveIdea(idea,i)} disabled={saved.indexOf(i)>=0}>
+                        {saved.indexOf(i)>=0 ? "✓ Saved to cocktails" : "+ Save to cocktails"}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <button className="btn btn-primary" style={{marginTop:18,width:"100%",justifyContent:"center"}}
+                onClick={openBar} disabled={picked.length===0}>
+                Create menu ({picked.length} selected)
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // ─── Bar: host-side cocktail menu + live order queue ─────────────────────────
 function BarTab({ recipes }) {
